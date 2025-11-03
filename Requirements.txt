@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+pydantic
+passlib[bcrypt]
+python-dotenv
+joblib
+numpy
+pandas
+mysql-connector-python
+scikit-learn
+scikit-fuzzy
+python-jose
