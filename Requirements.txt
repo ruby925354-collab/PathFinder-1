@@ -1,15 +1,15 @@
-pip install fastapi
-pip install uvicorn
-pip install python-dotenv
-pip install passlib[bcrypt]
-pip install python-jose
-pip install requests
-pip install joblib
-pip install numpy
-pip install pandas
-pip install scikit-learn
-pip install scikit-fuzzy
-pip install mysql-connector-python
-pip install email-validator
-pip install python-multipart
-pip install aiofiles
+fastapi
+uvicorn
+python-dotenv
+passlib[bcrypt]
+python-jose
+requests
+joblib
+numpy
+pandas
+scikit-learn
+scikit-fuzzy
+mysql-connector-python
+email-validator
+python-multipart
+aiofiles
