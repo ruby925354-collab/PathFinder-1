@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { FaTimes, FaUser, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaTimes, FaUser, FaLock, FaEye, FaEyeSlash, FaSpinner } from 'react-icons/fa';
 import Logo from '@/public/PATHFINDER-logo-edited.png';
 import { useRouter } from 'next/navigation';
 import ChangePasswordModal from './ChangePasswordModal';
@@ -24,7 +24,8 @@ const LoginModal: React.FC<LoginModalProps> = ({
   const [passwordValue, setPasswordValue] = useState('');
   const [email, setEmail] = useState('');
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
-  const [error, setError] = useState(false); // ✅ NEW: track error state
+  const [error, setError] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // ✅ loading state
   const router = useRouter();
 
   useEffect(() => {
@@ -32,6 +33,7 @@ const LoginModal: React.FC<LoginModalProps> = ({
       setIsVisible(true);
       clearInputs();
       setError(false);
+      setIsLoading(false);
     } else {
       setTimeout(() => setIsVisible(false), 300);
     }
@@ -42,6 +44,7 @@ const LoginModal: React.FC<LoginModalProps> = ({
       onClose();
       clearInputs();
       setError(false);
+      setIsLoading(false);
     }
   };
 
@@ -50,10 +53,15 @@ const LoginModal: React.FC<LoginModalProps> = ({
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
 
   const handleLogin = async () => {
+    if (isLoading) return; // ✅ Prevent multiple clicks
+
     if (!email.trim() || !passwordValue.trim()) {
       alert('Please enter both email and password');
       return;
     }
+
+    setIsLoading(true); // ✅ Start loading
+    setError(false);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/login`, {
@@ -66,15 +74,14 @@ const LoginModal: React.FC<LoginModalProps> = ({
       console.log("Login response:", data);
 
       if (!response.ok) {
-        // ❌ Instead of clearing, just show red highlight
         setError(true);
+        setIsLoading(false);
         return;
       }
 
-      // ✅ Clear error if success
+      // ✅ Success
       setError(false);
 
-      // Save JWT + user info
       if (data.access_token) localStorage.setItem("access_token", data.access_token);
       if (data.user_id) localStorage.setItem("user_id", data.user_id);
       if (data.role_id) localStorage.setItem("role_id", data.role_id);
@@ -86,10 +93,11 @@ const LoginModal: React.FC<LoginModalProps> = ({
       setTimeout(() => {
         if (role === 1) router.push('/admin');
       }, 200);
-
     } catch (err) {
       console.error('Login error:', err);
       setError(true);
+    } finally {
+      setIsLoading(false); // ✅ End loading
     }
   };
 
@@ -114,7 +122,7 @@ const LoginModal: React.FC<LoginModalProps> = ({
         <div className="flex justify-center items-center h-full mt-20">
           <div className="bg-brown-1 p-8 md:p-12 lg:p-16 rounded-lg shadow-lg w-full max-w-lg md:max-w-3xl lg:max-w-5xl xl:max-w-7xl flex relative z-10 transition-all duration-500">
             <button
-              onClick={() => { onClose(); clearInputs(); setError(false); }}
+              onClick={() => { onClose(); clearInputs(); setError(false); setIsLoading(false); }}
               className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 transition duration-300"
             >
               <FaTimes size={24} />
@@ -168,21 +176,38 @@ const LoginModal: React.FC<LoginModalProps> = ({
                     type="button"
                     onClick={handleForgotPassword}
                     className="text-brown-700 hover:underline"
+                    disabled={isLoading}
                   >
                     Forgot Password?
                   </button>
                 </div>
                 <button
                   type="submit"
-                  className="w-full py-5 bg-brown-6 text-white rounded-lg hover:bg-brown-700 transition duration-300"
+                  disabled={isLoading}
+                  className={`w-full py-5 rounded-lg transition duration-300 flex justify-center items-center ${
+                    isLoading
+                      ? 'bg-brown-400 cursor-not-allowed'
+                      : 'bg-brown-6 hover:bg-brown-700 text-white'
+                  }`}
                 >
-                  Login
+                  {isLoading ? (
+                    <>
+                      <FaSpinner className="animate-spin mr-3" />
+                      Logging in...
+                    </>
+                  ) : (
+                    'Login'
+                  )}
                 </button>
               </form>
               <div className="mt-8 text-center">
                 <p className="text-xl text-black">
                   Don't have an account?{' '}
-                  <button onClick={onSwitchToRegister} className="text-brown-700 hover:underline">
+                  <button
+                    onClick={onSwitchToRegister}
+                    className="text-brown-700 hover:underline"
+                    disabled={isLoading}
+                  >
                     Sign up
                   </button>
                 </p>
