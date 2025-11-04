@@ -56,6 +56,18 @@ from fastapi.middleware.cors import CORSMiddleware
 # ---------- FastAPI ----------
 app = FastAPI()
 
+origins = [
+    "https://path-finder-finals-bfhg.vercel.app",  # <-- replace with your actual Vercel domain
+    "http://localhost:3000",              # for local testing
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,            # allowed frontend URLs
+    allow_credentials=True,
+    allow_methods=["*"],              # allows all HTTP methods (GET, POST, OPTIONS, etc.)
+    allow_headers=["*"],              # allows all headers
+)
 # include routes
 
 logger = logging.getLogger(__name__)
@@ -99,15 +111,6 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
-
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://path-finder-finals.vercel.app"],  # restrict in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 app.include_router(personality.router)
 app.include_router(scholastic.router)
@@ -2488,6 +2491,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
