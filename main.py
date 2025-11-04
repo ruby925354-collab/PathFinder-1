@@ -103,7 +103,7 @@ logger = logging.getLogger(__name__)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # restrict in production
+    allow_origins=["https://path-finder-finals.vercel.app"],  # restrict in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -2488,5 +2488,6 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
