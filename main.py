@@ -3,6 +3,7 @@
 
 import os
 import time
+import resend
 import smtplib
 from fastapi import requests
 import joblib
@@ -95,11 +96,12 @@ load_dotenv()
 # OTP_RESEND_COOLDOWN = 30  # 30 seconds
 
 # Email (SMTP) settings
-SENDER_EMAIL = os.getenv("SENDER_EMAIL")
-SENDER_PASS = os.getenv("SENDER_PASS")
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+# SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+# SENDER_PASS = os.getenv("SENDER_PASS")
+# SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+# SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 
+resend.api_key = os.getenv("RESEND_API_KEY")
 # OTP settings
 OTP_EXPIRY_SECONDS = int(os.getenv("OTP_EXPIRY_SECONDS", 300))  # 5 minutes
 OTP_RESEND_COOLDOWN = int(os.getenv("OTP_RESEND_COOLDOWN", 30))  # 30 seconds
@@ -399,9 +401,62 @@ def resend_password_reset_otp(req: ResendPasswordResetOTPRequest):
     return {"success": True, "message": "OTP resent to your email"}
 
 # ---------- Utility: send OTP ----------
+# def send_otp_via_email(email: str, otp: str, purpose: str, fullname: str | None = None):
+#     """
+#     Sends OTP by SMTP and personalizes email for password reset or registration.
+#     """
+#     conn = get_db_connection()
+#     if purpose == "reset":
+#         try:
+#             cursor = conn.cursor(dictionary=True)
+#             cursor.execute("""
+#                 SELECT first_name, middle_name, last_name, extension
+#                 FROM user_information
+#                 WHERE email = %s
+#             """, (email,))
+#             user = cursor.fetchone()
+#             if not user:
+#                 raise HTTPException(status_code=404, detail="User not found")
+
+#             full_name = f"{user['first_name']} " \
+#                         f"{user['middle_name']+' ' if user['middle_name'] else ''}" \
+#                         f"{user['last_name'] or ''}" \
+#                         f"{' '+user['extension'] if user['extension'] else ''}".strip()
+
+#         except Exception as e:
+#             raise HTTPException(status_code=500, detail=f"Database error: {e}")
+#     else:
+#         full_name = fullname if fullname else "User"
+#     # Dynamic subject based on purpose
+#     if purpose == "register":
+#         subject = "Complete your registration - Pathfinder"
+#     else:  # reset
+#         subject = "Reset your password - Pathfinder"
+
+#     html_content = get_otp_email_html(otp, full_name, purpose)
+#     msg = MIMEText(html_content, "html")
+#     msg["Subject"] = subject
+#     msg["From"] = SENDER_EMAIL if SENDER_EMAIL else "no-reply@example.com"
+#     msg["To"] = email
+
+#     if not SENDER_EMAIL or not SENDER_PASS:
+#         logger.warning("SENDER_EMAIL/SENDER_PASS not configured — printing OTP to logs for local testing.")
+#         logger.info("OTP for %s is: %s", email, otp)
+#         return
+
+#     try:
+#         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+#             server.starttls()
+#             server.login(SENDER_EMAIL, SENDER_PASS)
+#             server.sendmail(SENDER_EMAIL, [email], msg.as_string())
+#         logger.info("Sent OTP email to %s", email)
+#     except Exception as e:
+#         logger.exception("Failed to send OTP email")
+#         raise HTTPException(status_code=500, detail=f"Failed to send OTP: {e}")
+
 def send_otp_via_email(email: str, otp: str, purpose: str, fullname: str | None = None):
     """
-    Sends OTP by SMTP and personalizes email for password reset or registration.
+    Sends OTP using Resend API (instead of SMTP).
     """
     conn = get_db_connection()
     if purpose == "reset":
@@ -420,37 +475,32 @@ def send_otp_via_email(email: str, otp: str, purpose: str, fullname: str | None 
                         f"{user['middle_name']+' ' if user['middle_name'] else ''}" \
                         f"{user['last_name'] or ''}" \
                         f"{' '+user['extension'] if user['extension'] else ''}".strip()
-
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Database error: {e}")
     else:
         full_name = fullname if fullname else "User"
-    # Dynamic subject based on purpose
-    if purpose == "register":
-        subject = "Complete your registration - Pathfinder"
-    else:  # reset
-        subject = "Reset your password - Pathfinder"
 
+    # Prepare email content
+    subject = (
+        "Complete your registration - Pathfinder"
+        if purpose == "register"
+        else "Reset your password - Pathfinder"
+    )
     html_content = get_otp_email_html(otp, full_name, purpose)
-    msg = MIMEText(html_content, "html")
-    msg["Subject"] = subject
-    msg["From"] = SENDER_EMAIL if SENDER_EMAIL else "no-reply@example.com"
-    msg["To"] = email
 
-    if not SENDER_EMAIL or not SENDER_PASS:
-        logger.warning("SENDER_EMAIL/SENDER_PASS not configured — printing OTP to logs for local testing.")
-        logger.info("OTP for %s is: %s", email, otp)
-        return
-
+    # Send email using Resend
     try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SENDER_EMAIL, SENDER_PASS)
-            server.sendmail(SENDER_EMAIL, [email], msg.as_string())
-        logger.info("Sent OTP email to %s", email)
+        response = resend.Emails.send({
+            "from": "PathFinder <no-reply@pathfinder.com>",  # Must be verified in Resend
+            "to": [email],
+            "subject": subject,
+            "html": html_content
+        })
+        logger.info(f"Resend email sent successfully: {response}")
     except Exception as e:
-        logger.exception("Failed to send OTP email")
-        raise HTTPException(status_code=500, detail=f"Failed to send OTP: {e}")
+        logger.exception("Failed to send OTP email via Resend")
+        raise HTTPException(status_code=500, detail=f"Failed to send OTP via Resend: {e}")
+
 
 def get_otp_email_html(otp: str, full_name: str, purpose: str) -> str:
     current_date = datetime.now().strftime("%d %b, %Y")
@@ -2491,6 +2541,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
