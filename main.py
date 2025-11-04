@@ -87,18 +87,18 @@ load_dotenv()
 # ---------- Config ----------
 
 # ---------- SMTP / OTP settings ----------
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-SENDER_EMAIL = "hyouka309@gmail.com"
-SENDER_PASS = "rhav bkow gzjd spuu"  # Use your Gmail App Password, not actual Gmail password
-OTP_EXPIRY_SECONDS = 300  # 5 minutes
-OTP_RESEND_COOLDOWN = 30  # 30 seconds
+# SMTP_SERVER = "smtp.gmail.com"
+# SMTP_PORT = 587
+# SENDER_EMAIL = "hyouka309@gmail.com"
+# SENDER_PASS = "rhav bkow gzjd spuu"  # Use your Gmail App Password, not actual Gmail password
+# OTP_EXPIRY_SECONDS = 300  # 5 minutes
+# OTP_RESEND_COOLDOWN = 30  # 30 seconds
 
 # Email (SMTP) settings
-# SENDER_EMAIL = os.getenv("SENDER_EMAIL")
-# SENDER_PASS = os.getenv("SENDER_PASS")
-# SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-# SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+SENDER_PASS = os.getenv("SENDER_PASS")
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 
 # OTP settings
 OTP_EXPIRY_SECONDS = int(os.getenv("OTP_EXPIRY_SECONDS", 300))  # 5 minutes
@@ -2491,6 +2491,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
