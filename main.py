@@ -3,7 +3,6 @@
 
 import os
 import time
-import resend
 import smtplib
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Email, To, Content
@@ -102,8 +101,6 @@ load_dotenv()
 # SENDER_PASS = os.getenv("SENDER_PASS")
 # SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 # SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-
-resend.api_key = os.getenv("RESEND_API_KEY")
 # OTP settings
 OTP_EXPIRY_SECONDS = int(os.getenv("OTP_EXPIRY_SECONDS", 300))  # 5 minutes
 OTP_RESEND_COOLDOWN = int(os.getenv("OTP_RESEND_COOLDOWN", 30))  # 30 seconds
@@ -2543,6 +2540,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
