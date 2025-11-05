@@ -66,13 +66,13 @@ export default function AdminDashboard() {
       middle_name?: string | null;
       last_name: string;
       extension?: string | null;
-      personality_type: string;
-      strand: string; // 🆕 Added
-      top_subject: string; // 🆕 Added
-      top_subject_percentage: string; // 🆕 Added
+      strand: string;
+      top_subject: string; // Knowledge
+      top_subject_percentage: string;
+      program_name: string; // 🆕 Added
+      program_details?: string | null; // 🆕 Added
     }[]
   >([]);
-
 
   const [newKnowledgeTimer, setNewKnowledgeTimer] = useState<number>(60); // default 60 seconds
   const [editedKnowledgeTimer, setEditedKnowledgeTimer] = useState<number>(60);
@@ -2098,36 +2098,39 @@ export default function AdminDashboard() {
         return renderDashboardContent();
       case 'Registered Users':
         return (
-          <div className="flex flex-col items-center min-h-screen px-8">
-            <h1 className="text-3xl font-bold mt-4 mb-8 text-center text-black">Registered Users</h1>
-            <div className="bg-brown-1 p-6 rounded-lg shadow-lg w-full max-w-8xl overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-brown-6 text-white">
+          <div className="bg-brown-1 p-6 rounded-lg shadow-lg">
+            <h2 className="text-xl font-bold mb-4 text-black">Registered Users</h2>
+      
+            <div className="max-h-[500px] overflow-y-auto rounded-lg border border-brown-300 shadow-inner">
+              <table className="min-w-full text-left text-sm text-gray-800">
+                <thead className="sticky top-0 z-10 bg-brown-6 text-white shadow">
+                  <tr>
                     <th className="p-3 text-left">ID</th>
                     <th className="p-3 text-left">Username</th>
                     <th className="p-3 text-left">Email</th>
                     <th className="p-3 text-left">Full Name</th>
-                    <th className="p-3 text-left">Personality</th>
                     <th className="p-3 text-left">Strand</th>
                     <th className="p-3 text-left">Knowledge</th>
+                    <th className="p-3 text-left">Program</th>
                     <th className="p-3 text-left">%</th>
                   </tr>
                 </thead>
                 <tbody>
                   {registeredUsers.map((user) => (
-                    <tr key={user.user_id} className="border-b border-gray-300 hover:bg-gray-100 transition">
+                    <tr
+                      key={user.user_id}
+                      className="border-b border-gray-300 hover:bg-[#F9F5F2] transition-colors"
+                    >
                       <td className="p-3">{user.user_id}</td>
                       <td className="p-3">{user.username}</td>
                       <td className="p-3">{user.email}</td>
                       <td className="p-3">
                         {user.first_name} {user.middle_name || ''} {user.last_name || ''} {user.extension || ''}
                       </td>
-                      <td className="p-3">{user.personality_type}</td>
                       <td className="p-3">{user.strand}</td>
                       <td className="p-3">{user.top_subject}</td>
+                      <td className="p-3">{user.program_name}</td>
                       <td className="p-3">{user.top_subject_percentage}</td>
-
                     </tr>
                   ))}
                 </tbody>
@@ -3932,4 +3935,5 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
 
