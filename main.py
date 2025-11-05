@@ -5,6 +5,8 @@ import os
 import time
 import resend
 import smtplib
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Email, To, Content
 from fastapi import requests
 import joblib
 import json
@@ -456,9 +458,13 @@ def resend_password_reset_otp(req: ResendPasswordResetOTPRequest):
 
 def send_otp_via_email(email: str, otp: str, purpose: str, fullname: str | None = None):
     """
-    Sends OTP using Resend API (instead of SMTP).
+    Sends OTP using SendGrid API with personalized HTML templates.
     """
+
     conn = get_db_connection()
+    full_name = fullname or "User"
+
+    # Fetch user's name for password reset
     if purpose == "reset":
         try:
             cursor = conn.cursor(dictionary=True)
@@ -468,38 +474,34 @@ def send_otp_via_email(email: str, otp: str, purpose: str, fullname: str | None 
                 WHERE email = %s
             """, (email,))
             user = cursor.fetchone()
-            if not user:
-                raise HTTPException(status_code=404, detail="User not found")
-
-            full_name = f"{user['first_name']} " \
-                        f"{user['middle_name']+' ' if user['middle_name'] else ''}" \
-                        f"{user['last_name'] or ''}" \
-                        f"{' '+user['extension'] if user['extension'] else ''}".strip()
+            if user:
+                full_name = f"{user['first_name']} " \
+                            f"{user['middle_name']+' ' if user['middle_name'] else ''}" \
+                            f"{user['last_name'] or ''}" \
+                            f"{' '+user['extension'] if user['extension'] else ''}".strip()
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Database error: {e}")
-    else:
-        full_name = fullname if fullname else "User"
 
-    # Prepare email content
-    subject = (
-        "Complete your registration - Pathfinder"
-        if purpose == "register"
-        else "Reset your password - Pathfinder"
-    )
+    subject = "Complete your registration - Pathfinder" if purpose == "register" else "Reset your password - Pathfinder"
     html_content = get_otp_email_html(otp, full_name, purpose)
 
-    # Send email using Resend
     try:
-        response = resend.Emails.send({
-            "from": "PathFinder <no-reply@pathfinder.com>",  # Must be verified in Resend
-            "to": [email],
-            "subject": subject,
-            "html": html_content
-        })
-        logger.info(f"Resend email sent successfully: {response}")
+        sg = SendGridAPIClient(os.getenv("SENDGRID_API_KEY"))
+        message = Mail(
+            from_email=Email(os.getenv("SENDER_EMAIL"), os.getenv("SENDER_NAME", "PathFinder")),
+            to_emails=To(email),
+            subject=subject,
+            html_content=Content("text/html", html_content)
+        )
+        response = sg.send(message)
+
+        if response.status_code not in [200, 202]:
+            raise Exception(f"SendGrid failed with status {response.status_code}: {response.body}")
+
+        logger.info(f"✅ OTP email sent to {email} ({purpose})")
     except Exception as e:
-        logger.exception("Failed to send OTP email via Resend")
-        raise HTTPException(status_code=500, detail=f"Failed to send OTP via Resend: {e}")
+        logger.exception("❌ Failed to send OTP via SendGrid")
+        raise HTTPException(status_code=500, detail=f"Failed to send OTP: {e}")
 
 
 def get_otp_email_html(otp: str, full_name: str, purpose: str) -> str:
@@ -2541,6 +2543,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
