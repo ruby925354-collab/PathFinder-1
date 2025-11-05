@@ -211,21 +211,7 @@ def get_registered_users():
             for user in users:
                 user_id = user["user_id"]
 
-                # 🧠 Get personality type with highest total answer count
-                cursor.execute("""
-                    SELECT p.personality_type,
-                           COALESCE(SUM(upt.answer), 0) AS total_score
-                    FROM user_personality_test upt
-                    JOIN personality_test pt ON upt.personality_test_id = pt.personality_test_id
-                    JOIN personality p ON pt.personality_id = p.personality_id
-                    WHERE upt.user_id = %s
-                    GROUP BY p.personality_type
-                    ORDER BY total_score DESC
-                    LIMIT 1
-                """, (user_id,))
-                personality = cursor.fetchone()
-
-                # 🎓 Get knowledge strand and top-performing subject (from user_scholastic_knowledge_test)
+                # 🎓 Get knowledge strand and top-performing subject
                 cursor.execute("""
                     SELECT 
                         strand,
@@ -241,16 +227,26 @@ def get_registered_users():
                 top_subject = None
                 top_score = None
                 strand = None
-
                 if knowledge_row:
                     strand = knowledge_row["strand"]
-                    # Remove non-subject fields for analysis
-                    scores = {k: v for k, v in knowledge_row.items() if k not in ["user_sk_id", "user_id", "strand"] and v is not None}
-
+                    scores = {k: v for k, v in knowledge_row.items() 
+                              if k not in ["user_sk_id", "user_id", "strand"] and v is not None}
                     if scores:
-                        # Get top-performing subject
                         top_subject = max(scores, key=scores.get)
-                        top_score = scores[top_subject] * 100  # Convert to percentage
+                        top_score = scores[top_subject] * 100  # convert to %
+
+                # 🎯 Get first recommended program from test_result
+                cursor.execute("""
+                    SELECT pi.program_name, pi.program_details
+                    FROM test_result tr
+                    JOIN program_information pi ON tr.program_id = pi.program_id
+                    WHERE tr.user_id = %s
+                    ORDER BY tr.test_result_id ASC
+                    LIMIT 1
+                """, (user_id,))
+                program_row = cursor.fetchone()
+                program_name = program_row["program_name"] if program_row else "N/A"
+                program_details = program_row["program_details"] if program_row else None
 
                 results.append({
                     "user_id": user.get("user_id"),
@@ -260,13 +256,23 @@ def get_registered_users():
                     "middle_name": user.get("middle_name"),
                     "last_name": user.get("last_name"),
                     "extension": user.get("extension"),
-                    "personality_type": personality["personality_type"] if personality else "N/A",
-                    "strand": strand if strand else "N/A",
-                    "top_subject": top_subject if top_subject else "N/A",
+                    "strand": strand or "N/A",
+                    "top_subject": top_subject or "N/A",  # Now shown under "Knowledge"
                     "top_subject_percentage": f"{top_score:.2f}%" if top_score else "N/A",
+                    "program_name": program_name,
+                    "program_details": program_details,
                 })
 
             return results
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch registered users: {str(e)}"
+        )
+
 
     except Exception as e:
         import traceback
@@ -2540,6 +2546,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
