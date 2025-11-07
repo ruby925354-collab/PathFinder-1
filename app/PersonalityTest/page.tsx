@@ -27,6 +27,14 @@ const PersonalityTest = () => {
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
+  useEffect(() => {
+    if (questions.length > 0) {
+      const allAnswered = questions.every(q => q.answered);
+      setHasCompletedAll(allAnswered);
+    }
+  }, [questions]);
+
+
   // 🧭 1️⃣ Redirect to home if not logged in
   useEffect(() => {
     const userId = localStorage.getItem('user_id');
@@ -301,6 +309,16 @@ const PersonalityTest = () => {
               {currentQuestionIndex === questions.length - 1 ? 'Finish' : 'Next'}
             </button>
           </div>
+          {hasCompletedAll && (
+          <div className="flex justify-center mt-4">
+            <button
+              onClick={handleAutoSubmit}
+              className="text-[#6B4F4F] underline hover:text-[#4B2E2E] transition font-medium"
+            >
+              Skip to Results
+            </button>
+          </div>
+        )}
         </div>
       ) : (
         <p className="text-gray-500">Loading questions...</p>
