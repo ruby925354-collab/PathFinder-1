@@ -64,7 +64,18 @@ const Body = () => {
         animate={{ y: [0, -40, 0], opacity: [0.7, 1, 0.7] }}
         transition={{ repeat: Infinity, duration: 10 }}
       />
-
+             {/* 🪩 DVD-style Pathfinder Logos */}
+      {/* {mounted && ( // ✅ Only render after hydration
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <BouncingLogo src="/Star Confidence Sticker by Pusheen.gif" delay={0} />
+          <BouncingLogo src="/Playing Video Games Sticker by Pusheen.gif" delay={0} />
+          <BouncingLogo src="/Happy Birthday Sticker by Pusheen.gif" delay={0} />
+          <BouncingLogo src="/Fat Cat Eating Sticker by Pusheen.gif" delay={0} />
+          <BouncingLogo src="/Cats Helping Sticker by Pusheen.gif" delay={0} />
+          <BouncingLogo src="/Tired Summer Time Sticker by Pusheen.gif" delay={0} />
+          <BouncingLogo src="/Cat Traveling Sticker by Pusheen.gif" delay={0} />
+        </div>
+      )} */}
 
       {/* Hero Content */}
       <motion.div
