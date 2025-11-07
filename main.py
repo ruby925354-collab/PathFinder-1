@@ -59,8 +59,8 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
 
 origins = [
-    "https://path-finder-finals-bfhg.vercel.app",  # <-- replace with your actual Vercel domain
-    "http://localhost:3000",              # for local testing
+    "https://path-finder-finals-bfhg.vercel.app",
+    "https://pathfinder-io.onrender.com",              # for local testing
 ]
 
 app.add_middleware(
@@ -2546,6 +2546,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
