@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FaCheckCircle } from 'react-icons/fa';
 import { useRouter } from 'next/navigation';
+import Image from "next/image"; 
 import axios from 'axios';
 
 interface KnowledgeQuestion {
@@ -31,6 +32,20 @@ const KnowledgeTest = () => {
   const [finished, setFinished] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const [gifPosition, setGifPosition] = useState({ top: 0, left: 0 });
+
+useEffect(() => {
+  if (boxRef.current) {
+    const rect = boxRef.current.getBoundingClientRect();
+    // Adjust offsets slightly if you want the cat to “peek”
+    setGifPosition({
+      top: rect.top - 30, // slightly above the box
+      left: rect.left - 30, // slightly to the left
+    });
+  }
+}, [questions, currentQuestionIndex]);
+
 
   useEffect(() => {
     setUserId(localStorage.getItem('user_id'));
@@ -420,10 +435,22 @@ useEffect(() => {
         // Active Question
         questions.length > 0 && (
           <form onSubmit={(e) => e.preventDefault()} className="w-full max-w-screen-md animate-fadeIn">
-            <h2 className="text-2xl md:text-3xl font-bold text-center text-[#5C4033] mb-6 md:mb-10">
-              Knowledge Test
-            </h2>
-            <div className="relative bg-white/95 border border-[#E6D3BA] p-6 md:p-10 rounded-3xl shadow-2xl">
+            <div className="flex justify-center items-center gap-3 md:gap-4 mb-6 md:mb-10">
+                {/* 🧠 Image or GIF beside title */}
+                <div className="relative mb-6 md:mb-10">
+
+                  {/* Title */}
+                  <h2 className="text-2xl md:text-3xl font-bold text-center text-[#5C4033]">
+                    Knowledge Test
+                  </h2>
+                </div>
+
+
+              </div>
+            <div
+                ref={boxRef}
+                className="relative bg-white/95 border border-[#E6D3BA] p-6 md:p-10 rounded-3xl shadow-2xl"
+              >
               {/* Top info */}
               <div className="flex justify-between items-center mb-6">
                 <span className="text-sm font-medium text-[#5C4033] bg-[#F5E9DD] px-4 py-1 rounded-full shadow-sm">
@@ -519,6 +546,22 @@ useEffect(() => {
             </div>
           </div>
         </div>
+      )}
+      {gifPosition && (
+        <Image
+          src="/Cat Working Sticker by Pusheen.gif"
+          alt="Peeking Cat"
+          width={105}
+          height={105}
+          style={{
+            position: 'fixed',
+            top: gifPosition.top -50,
+            left: gifPosition.left + 40,
+            pointerEvents: 'none',
+          }}
+          className="object-contain"
+          priority
+        />
       )}
     </div>
   );
