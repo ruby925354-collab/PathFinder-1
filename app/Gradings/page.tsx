@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 
+
 const Page = () => {
   const [track, setTrack] = useState<string | null>(null);
   const [gradeLevel, setGradeLevel] = useState(11);
@@ -17,10 +18,72 @@ const Page = () => {
   const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const bubbleRef = useRef<HTMLDivElement | null>(null);
-  const [bubblePos, setBubblePos] = useState({ x: 32, y: 32 });
-  const [dragging, setDragging] = useState(false);
   const offsetRef = useRef({ x: 0, y: 0 });
+  const bubbleRef = React.useRef<HTMLDivElement | null>(null);
+const [bubblePos, setBubblePos] = useState({ x: 20, y: 20 });
+const dragOffset = React.useRef({ x: 0, y: 0 });
+const dragging = React.useRef(false);
+
+// Desktop
+const startDrag = (e: React.MouseEvent) => {
+  dragging.current = true;
+  dragOffset.current = {
+    x: e.clientX - bubblePos.x,
+    y: e.clientY - bubblePos.y,
+  };
+};
+
+const onMouseMove = (e: MouseEvent) => {
+  if (!dragging.current) return;
+  setBubblePos({
+    x: e.clientX - dragOffset.current.x,
+    y: e.clientY - dragOffset.current.y,
+  });
+};
+
+const onMouseUp = () => {
+  dragging.current = false;
+};
+
+// Mobile
+const startDragTouch = (e: React.TouchEvent) => {
+  const touch = e.touches[0];
+  dragging.current = true;
+  dragOffset.current = {
+    x: touch.clientX - bubblePos.x,
+    y: touch.clientY - bubblePos.y,
+  };
+};
+
+const onTouchMove = (e: TouchEvent) => {
+  if (!dragging.current) return;
+  const touch = e.touches[0];
+  setBubblePos({
+    x: touch.clientX - dragOffset.current.x,
+    y: touch.clientY - dragOffset.current.y,
+  });
+};
+
+const onTouchEnd = () => {
+  dragging.current = false;
+};
+
+useEffect(() => {
+  window.addEventListener("mousemove", onMouseMove);
+  window.addEventListener("mouseup", onMouseUp);
+
+  window.addEventListener("touchmove", onTouchMove);
+  window.addEventListener("touchend", onTouchEnd);
+
+  return () => {
+    window.removeEventListener("mousemove", onMouseMove);
+    window.removeEventListener("mouseup", onMouseUp);
+
+    window.removeEventListener("touchmove", onTouchMove);
+    window.removeEventListener("touchend", onTouchEnd);
+  };
+}, [bubblePos]);
+
 
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -101,32 +164,6 @@ const Page = () => {
 
     fetchData();
   }, [track, gradeLevel, semester, loading, API_BASE_URL]);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-  setDragging(true);
-  const rect = bubbleRef.current!.getBoundingClientRect();
-  offsetRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-};
-
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!dragging) return;
-    setBubblePos({
-      x: e.clientX - offsetRef.current.x,
-      y: e.clientY - offsetRef.current.y,
-    });
-  };
-
-  const handleMouseUp = () => setDragging(false);
-
-  useEffect(() => {
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [dragging]);
-
 
   // 🔹 Grade input
   const handleGradeChange = (index: number, value: string) => {
@@ -307,13 +344,14 @@ const Page = () => {
         </h2>
       </div>
 
-      {/* ====== BIG CONNECTED BUBBLE INDICATOR (draggable) ====== */}
-        <div
-          ref={bubbleRef}
-          onMouseDown={handleMouseDown}
-          className="z-50 flex items-center space-x-4 cursor-move fixed"
-          style={{ top: bubblePos.y, left: bubblePos.x }}
-        >
+          {/* ====== BIG CONNECTED BUBBLE INDICATOR (draggable) ====== */}
+          <div
+            ref={bubbleRef}
+            className="absolute z-50 flex items-center space-x-4"
+            style={{ top: bubblePos.y, left: bubblePos.x }}
+            onMouseDown={startDrag}
+            onTouchStart={startDragTouch}
+          >
 
         {/* left circular bubble (big) */}
         <div className="flex flex-col items-start">
