@@ -554,7 +554,7 @@ useEffect(() => {
           width={105}
           height={105}
           style={{
-            position: 'fixed',
+            position: 'absolute',
             top: gifPosition.top -50,
             left: gifPosition.left + 40,
             pointerEvents: 'none',
@@ -568,3 +568,4 @@ useEffect(() => {
 };
 
 export default KnowledgeTest;
+
