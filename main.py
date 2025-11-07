@@ -59,7 +59,7 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
 
 origins = [
-    "https://path-finder-finals-bfhg.vercel.app",
+    "https://pathfinder-yourbest-recommender.vercel.app",
     "https://pathfinder-sigma-self.vercel.app",
     "https://pathfinder-io.onrender.com",              # for local testing
 ]
@@ -2547,6 +2547,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
