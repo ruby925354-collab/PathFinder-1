@@ -66,7 +66,7 @@ const Body = () => {
       />
 
       {/* 🪩 DVD-style Pathfinder Logos */}
-      {mounted && ( // ✅ Only render after hydration
+      /* {mounted && ( // ✅ Only render after hydration
         <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
           <BouncingLogo src="/Star Confidence Sticker by Pusheen.gif" delay={0} />
           <BouncingLogo src="/Playing Video Games Sticker by Pusheen.gif" delay={0} />
@@ -76,7 +76,7 @@ const Body = () => {
           <BouncingLogo src="/Tired Summer Time Sticker by Pusheen.gif" delay={0} />
           <BouncingLogo src="/Cat Traveling Sticker by Pusheen.gif" delay={0} />
         </div>
-      )}
+      )} */
 
       {/* Hero Content */}
       <motion.div
@@ -198,3 +198,4 @@ const BouncingLogo: React.FC<{ src: string; delay?: number }> = ({ src, delay = 
 };
 
 export default Body;
+
