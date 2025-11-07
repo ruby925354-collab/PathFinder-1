@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 
@@ -17,6 +17,11 @@ const Page = () => {
   const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const bubbleRef = useRef<HTMLDivElement | null>(null);
+  const [bubblePos, setBubblePos] = useState({ x: 32, y: 32 });
+  const [dragging, setDragging] = useState(false);
+  const offsetRef = useRef({ x: 0, y: 0 });
+
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -96,6 +101,32 @@ const Page = () => {
 
     fetchData();
   }, [track, gradeLevel, semester, loading, API_BASE_URL]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+  setDragging(true);
+  const rect = bubbleRef.current!.getBoundingClientRect();
+  offsetRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+};
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!dragging) return;
+    setBubblePos({
+      x: e.clientX - offsetRef.current.x,
+      y: e.clientY - offsetRef.current.y,
+    });
+  };
+
+  const handleMouseUp = () => setDragging(false);
+
+  useEffect(() => {
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [dragging]);
+
 
   // 🔹 Grade input
   const handleGradeChange = (index: number, value: string) => {
@@ -276,8 +307,14 @@ const Page = () => {
         </h2>
       </div>
 
-      {/* ====== BIG CONNECTED BUBBLE INDICATOR (fixed) ====== */}
-      <div className="fixed top-8 left-8 z-50 flex items-center space-x-4">
+      {/* ====== BIG CONNECTED BUBBLE INDICATOR (draggable) ====== */}
+        <div
+          ref={bubbleRef}
+          onMouseDown={handleMouseDown}
+          className="z-50 flex items-center space-x-4 cursor-move fixed"
+          style={{ top: bubblePos.y, left: bubblePos.x }}
+        >
+
         {/* left circular bubble (big) */}
         <div className="flex flex-col items-start">
           <div className="bg-[#7B4F2C] text-white rounded-full px-8 py-4 shadow-2xl border border-[#E6D3BA]">
