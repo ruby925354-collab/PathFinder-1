@@ -277,23 +277,23 @@ const Page = () => {
       </div>
 
       {/* ====== MAIN CARD (subjects area) ====== */}
-<div className="w-full max-w-xl md:max-w-5xl bg-white/90 backdrop-blur-xl rounded-3xl p-10 shadow-2xl border border-[#E6D3BA] relative mt-32">
-
-  {/* ✅ HALF-TAB (A1) */}
-  <div
-    className="
-      absolute -top-6 left-0
-      w-1/2
-      bg-[#7B4F2C] text-white
-      rounded-t-2xl
-      py-2
-      text-center
-      font-bold text-lg
-      shadow
-    "
-  >
-    Grade {gradeLevel} • {semester === 1 ? '1st Sem' : '2nd Sem'}
-  </div>
+      <div className="w-full max-w-xl md:max-w-5xl bg-white/90 backdrop-blur-xl rounded-3xl p-10 shadow-2xl border border-[#E6D3BA] relative mt-32">
+      
+        {/* ✅ HALF-TAB (A1) */}
+        <div
+          className="
+            absolute -top-6 left-0
+            w-1/2
+            bg-[#7B4F2C] text-white
+            rounded-t-2xl
+            py-2
+            text-center
+            font-bold text-lg
+            shadow
+          "
+        >
+          Grade {gradeLevel} • {semester === 1 ? '1st Sem' : '2nd Sem'}
+        </div>
 
         <div className="pl-20 md:pl-28"></div>
 
