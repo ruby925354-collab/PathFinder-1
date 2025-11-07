@@ -18,74 +18,6 @@ const Page = () => {
   const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const offsetRef = useRef({ x: 0, y: 0 });
-  const bubbleRef = React.useRef<HTMLDivElement | null>(null);
-const [bubblePos, setBubblePos] = useState({ x: 20, y: 20 });
-const dragOffset = React.useRef({ x: 0, y: 0 });
-const dragging = React.useRef(false);
-
-// Desktop
-const startDrag = (e: React.MouseEvent) => {
-  dragging.current = true;
-  dragOffset.current = {
-    x: e.clientX - bubblePos.x,
-    y: e.clientY - bubblePos.y,
-  };
-};
-
-const onMouseMove = (e: MouseEvent) => {
-  if (!dragging.current) return;
-  setBubblePos({
-    x: e.clientX - dragOffset.current.x,
-    y: e.clientY - dragOffset.current.y,
-  });
-};
-
-const onMouseUp = () => {
-  dragging.current = false;
-};
-
-// Mobile
-const startDragTouch = (e: React.TouchEvent) => {
-  const touch = e.touches[0];
-  dragging.current = true;
-  dragOffset.current = {
-    x: touch.clientX - bubblePos.x,
-    y: touch.clientY - bubblePos.y,
-  };
-};
-
-const onTouchMove = (e: TouchEvent) => {
-  if (!dragging.current) return;
-  const touch = e.touches[0];
-  setBubblePos({
-    x: touch.clientX - dragOffset.current.x,
-    y: touch.clientY - dragOffset.current.y,
-  });
-};
-
-const onTouchEnd = () => {
-  dragging.current = false;
-};
-
-useEffect(() => {
-  window.addEventListener("mousemove", onMouseMove);
-  window.addEventListener("mouseup", onMouseUp);
-
-  window.addEventListener("touchmove", onTouchMove);
-  window.addEventListener("touchend", onTouchEnd);
-
-  return () => {
-    window.removeEventListener("mousemove", onMouseMove);
-    window.removeEventListener("mouseup", onMouseUp);
-
-    window.removeEventListener("touchmove", onTouchMove);
-    window.removeEventListener("touchend", onTouchEnd);
-  };
-}, [bubblePos]);
-
-
-
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
   // 🧭 Redirect admin away
@@ -344,39 +276,25 @@ useEffect(() => {
         </h2>
       </div>
 
-          {/* ====== BIG CONNECTED BUBBLE INDICATOR (draggable) ====== */}
-          <div
-            ref={bubbleRef}
-            className="absolute z-50 flex items-center space-x-4"
-            style={{ top: bubblePos.y, left: bubblePos.x }}
-            onMouseDown={startDrag}
-            onTouchStart={startDragTouch}
-          >
-
-        {/* left circular bubble (big) */}
-        <div className="flex flex-col items-start">
-          <div className="bg-[#7B4F2C] text-white rounded-full px-8 py-4 shadow-2xl border border-[#E6D3BA]">
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold leading-tight tracking-tight">
-              {track}
-            </h2>
-            <p className="text-sm md:text-base lg:text-lg opacity-90 mt-1 font-medium">
-              Grade {gradeLevel} • {semester === 1 ? '1st Sem' : '2nd Sem'}
-            </p>
-          </div>
-
-          {/* connector "stem" (small rounded bar) */}
-          <div className="w-2 h-10 bg-[#7B4F2C] rounded-full mx-auto -mt-3" />
-        </div>
-
-        {/* connecting bubble tip (small capsule) to visually attach to main card */}
-        <div className="hidden md:block">
-          <div className="w-8 h-8 bg-[#7B4F2C] rounded-full shadow-md translate-y-0.5" />
-        </div>
-      </div>
-
       {/* ====== MAIN CARD (subjects area) ====== */}
-      <div className="w-full max-w-xl md:max-w-5xl bg-white/90 backdrop-blur-xl rounded-3xl p-10 shadow-2xl border border-[#E6D3BA] relative mt-24">
-        {/* small spacer so fixed indicator connector visually sits on the left of this card */}
+<div className="w-full max-w-xl md:max-w-5xl bg-white/90 backdrop-blur-xl rounded-3xl p-10 shadow-2xl border border-[#E6D3BA] relative mt-32">
+
+  {/* ✅ HALF-TAB (A1) */}
+  <div
+    className="
+      absolute -top-6 left-0
+      w-1/2
+      bg-[#7B4F2C] text-white
+      rounded-t-2xl
+      py-2
+      text-center
+      font-bold text-lg
+      shadow
+    "
+  >
+    Grade {gradeLevel} • {semester === 1 ? '1st Sem' : '2nd Sem'}
+  </div>
+
         <div className="pl-20 md:pl-28"></div>
 
         {/* Subjects List (each card looks like a bubble and aligns visually with the indicator) */}
