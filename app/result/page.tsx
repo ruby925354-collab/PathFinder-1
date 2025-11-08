@@ -7,15 +7,20 @@ import { FaCheckCircle, FaHome, FaBrain, FaUser, FaListOl, FaTimes } from 'react
 interface Program {
   label: string;
   details?: string;
+  rank?: number;
 }
 
 interface TestResult {
   success?: boolean;
-  personality_type?: string;
+  personality_types?: string[];
   highest_knowledge_categories?: string[];
-  highest_knowledge_value?: number;
+  highest_knowledge_values?: string[];
   final_top3?: Program[];
+  program_count?: number;
+  saved_to_user_personality_result?: boolean;
+  source?: string;
 }
+
 
 const Result = () => {
   const [results, setResults] = useState<TestResult | null>(null);
@@ -135,7 +140,7 @@ const Result = () => {
               <p className="text-2xl ml-10 leading-relaxed">
                 Your dominant personality type is{' '}
                 <span className="font-extrabold text-[#3E2723] underline decoration-[#6D4C41]/60 decoration-4">
-                  {results.personality_type || 'N/A'}
+                  {results.personality_types?.join(', ') || 'N/A'}
                 </span>.
               </p>
             </section>
@@ -146,16 +151,15 @@ const Result = () => {
                 <FaBrain className="text-[#4E342E]" size={32} />
                 <h2 className="text-3xl font-bold">Knowledge Strength</h2>
               </div>
+
               <p className="text-2xl ml-10 leading-relaxed">
-                You scored highest in{' '}
+                You scored highest in{" "}
                 <span className="font-semibold text-[#4E342E]">
-                  {results.highest_knowledge_categories?.join(', ') || 'N/A'}
-                </span>{' '}
-                with a normalized score of{' '}
+                  {results.highest_knowledge_categories?.join(", ") || "N/A"}
+                </span>
+                {" "}with score(s){" "}
                 <span className="font-extrabold text-[#3E2723]">
-                  {results.highest_knowledge_value !== undefined
-                    ? `${(results.highest_knowledge_value * 100).toFixed(2)}%`
-                    : 'N/A'}
+                  {results.highest_knowledge_values?.join(", ") || "N/A"}
                 </span>.
               </p>
             </section>
@@ -176,7 +180,7 @@ const Result = () => {
                       onClick={() => handleProgramClick(prog)}
                     >
                       <div className="font-bold text-3xl text-[#3E2723]">
-                        {index + 1}. {prog.label}
+                        {prog.rank ?? index + 1}. {prog.label}
                       </div>
                     </li>
                   ))}
