@@ -67,15 +67,16 @@ export default function AdminDashboard() {
       last_name: string;
       extension?: string | null;
       strand: string;
-      top_subject: string; // Knowledge
-      top_subject_percentage: string;
-      program_name: string; // 🆕 Added
-      program_details?: string | null; // 🆕 Added
+      top_3_knowledge: { subject: string; percentage: string }[];
+      recommended_programs: { program_name: string; program_details: string; rank: number }[];
+      top_3_personality?: { type: string; confidence: string }[]; // 🆕 add this
     }[]
   >([]);
 
-  const [newKnowledgeTimer, setNewKnowledgeTimer] = useState<number>(60); // default 60 seconds
-  const [editedKnowledgeTimer, setEditedKnowledgeTimer] = useState<number>(60);
+
+
+  const [newKnowledgeTimer, setNewKnowledgeTimer] = useState<number>(0); // or null
+  const [editedKnowledgeTimer, setEditedKnowledgeTimer] = useState<number>(30);
 
   // ------------------ 🧠 STATE VARIABLES ------------------
   const [originalOption, setOriginalOption] = useState(''); // option before edit
@@ -174,6 +175,8 @@ export default function AdminDashboard() {
   // State and fetching logic
 
   const [loadingPrograms, setLoadingPrograms] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
   
   useEffect(() => {
     const fetchTopPrograms = async () => {
@@ -442,6 +445,11 @@ export default function AdminDashboard() {
     };
     fetchRegisteredUsers();
   }, []);
+  const [openKnowledgeDropdown, setOpenKnowledgeDropdown] = useState<number | null>(null);
+  const [openProgramDropdown, setOpenProgramDropdown] = useState<number | null>(null);
+  const [openPersonalityDropdown, setOpenPersonalityDropdown] = useState<number | null>(null);
+
+
 
   useEffect(() => {
     const fetchQuestions = async () => {
@@ -485,16 +493,18 @@ export default function AdminDashboard() {
           const key = `${q.knowledge_type} - ${q.category}`;
           if (!categorizedData[key]) categorizedData[key] = [];
 
-          categorizedData[key].push({
-            id: q.knowledge_id,
-            text: q.question,
-            options: q.options || [],
-            correctAnswer: q.answer,
-            knowledge_type: q.knowledge_type,
-            category: q.category,
-            category_type: q.category_type, // 🟢 include this
-            timer: q.timer,
-          });
+         categorizedData[key].push({
+          id: q.knowledge_id,
+          text: q.question,
+          options: q.options || [],
+          correctAnswer: q.answer,
+          knowledge_type: q.knowledge_type,
+          category: q.category,
+          category_type: q.category_type,
+          timer: Number(q.timer) ?? 60, // ✅ make sure it's a number
+        });
+
+        console.log(`Loaded ${q.question}: timer=${q.timer}`);
         });
 
         setKnowledgeTestQuestions(categorizedData);
@@ -730,7 +740,7 @@ export default function AdminDashboard() {
       setNewKnowledgeQuestion("");
       setNewKnowledgeOptions(["", "", "", ""]);
       setNewKnowledgeCorrectAnswer("");
-      setNewKnowledgeTimer(60);
+      setNewKnowledgeTimer(0);
       setIsAddFormVisible(false);
 
       alert("Question added successfully!");
@@ -748,17 +758,18 @@ export default function AdminDashboard() {
   // 🧩 Handle when user clicks "Edit" on a question
   const handleEditKnowledgeQuestion = (category: string, index: number) => {
     const question = knowledgeTestQuestions[category][index];
+    console.log("🧠 Editing question:", question);
+
     setActiveKnowledgeCategory(category);
     setEditingKnowledgeIndex(index);
 
     setEditedKnowledgeQuestion(question.text);
     setEditedKnowledgeOptions([...question.options]);
     setEditedKnowledgeCorrectAnswer(question.correctAnswer);
-
-    // Reset old/new option values each time
-    setOriginalOption('');
-    setUpdatedOption('');
+    setEditedKnowledgeTimer(question.timer ?? 60); // ✅ safe default
   };
+
+
 
   // 🧠 When user clicks on an option (to edit only that option)
   const handleOptionClick = (option: string) => {
@@ -770,21 +781,23 @@ export default function AdminDashboard() {
   // 💾 Save edited question or option
   const handleSaveKnowledgeEdit = async () => {
     if (!activeKnowledgeCategory || editingKnowledgeIndex === null) return;
-
-    const questionToEdit = knowledgeTestQuestions[activeKnowledgeCategory][editingKnowledgeIndex];
-
-    // Prepare updated local question object
-    const updatedQuestion = {
-      ...questionToEdit,
-      text: editedKnowledgeQuestion,
-      options: editedKnowledgeOptions.map((opt) =>
-        opt === originalOption ? updatedOption : opt
-      ),
-      correctAnswer: editedKnowledgeCorrectAnswer,
-    };
-
+    setIsSaving(true);
     try {
-        await axios.put(`http://127.0.0.1:8000/api/knowledge-questions/${questionToEdit.id}`, {
+      const questionToEdit = knowledgeTestQuestions[activeKnowledgeCategory][editingKnowledgeIndex];
+
+      // Prepare updated local question object
+      const updatedQuestion = {
+        ...questionToEdit,
+        text: editedKnowledgeQuestion,
+        options: editedKnowledgeOptions.map((opt) =>
+          opt === originalOption ? updatedOption : opt
+        ),
+        correctAnswer: editedKnowledgeCorrectAnswer,
+        timer: editedKnowledgeTimer, // ✅ include timer
+      };
+
+      try {
+        await axios.put(`${API_BASE_URL}/api/knowledge-questions/${questionToEdit.id}`, {
           question: editedKnowledgeQuestion,
           answer: editedKnowledgeCorrectAnswer,
           old_option: originalOption || null,
@@ -792,28 +805,33 @@ export default function AdminDashboard() {
           timer: editedKnowledgeTimer,
         });
 
-      // Update frontend state
-      setKnowledgeTestQuestions((prev) => ({
-        ...prev,
-        [activeKnowledgeCategory]: prev[activeKnowledgeCategory].map((q, index) =>
-          index === editingKnowledgeIndex ? updatedQuestion : q
-        ),
-      }));
+        // Update frontend state
+        setKnowledgeTestQuestions((prev) => ({
+          ...prev,
+          [activeKnowledgeCategory]: prev[activeKnowledgeCategory].map((q, index) =>
+            index === editingKnowledgeIndex ? updatedQuestion : q
+          ),
+        }));
 
-      // Reset everything
-      setEditingKnowledgeIndex(null);
-      setEditedKnowledgeQuestion('');
-      setEditedKnowledgeOptions(['']);
-      setEditedKnowledgeCorrectAnswer('');
-      setOriginalOption('');
-      setUpdatedOption('');
+        // Reset everything
+        setEditingKnowledgeIndex(null);
+        setEditedKnowledgeQuestion('');
+        setEditedKnowledgeOptions(['']);
+        setEditedKnowledgeCorrectAnswer('');
+        setEditedKnowledgeTimer(0); // ✅ reset timer field
+        setOriginalOption('');
+        setUpdatedOption('');
 
-      alert('Question updated successfully!');
-    } catch (error) {
-      console.error('Failed to update question:', error);
-      alert('Failed to update question. Please try again.');
+        alert('Question updated successfully!');
+      } catch (error) {
+        console.error('Failed to update question:', error);
+        alert('Failed to update question. Please try again.');
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
+
 
   const handleConfirmSaveKnowledgeEdit = () => {
     handleSaveKnowledgeEdit();
@@ -1199,14 +1217,15 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-10 gap-4 mb-1">
               {filteredQuestions.map((question, index) => (
                 <button
-                  key={question.id}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    setEditingKnowledgeIndex(index);
-                    setEditedKnowledgeQuestion(question.text);
-                    setEditedKnowledgeOptions(question.options);
-                    setEditedKnowledgeCorrectAnswer(question.correctAnswer);
-                  }}
+                key={question.id}
+                onClick={(event) => {
+                  event.preventDefault();
+                  setEditingKnowledgeIndex(index);
+                  setEditedKnowledgeQuestion(question.text);
+                  setEditedKnowledgeOptions(question.options);
+                  setEditedKnowledgeCorrectAnswer(question.correctAnswer);
+                  setEditedKnowledgeTimer(question.timer ?? 60); // ✅ FIXED
+                }}
                   className="w-11 h-11 bg-white border-2 text-black rounded-lg shadow hover:bg-gray-200 transition-transform duration-300 transform-gpu hover:scale-95 text-sm flex items-center justify-center"
                 >
                   {index + 1}
@@ -1414,7 +1433,10 @@ export default function AdminDashboard() {
                   </button>
                   <button
                     onClick={() => openConfirmModal(handleConfirmSaveKnowledgeEdit)}
-                    className="btn btn-primary border-brown-6 bg-brown-6 text-white rounded px-7 py-2 hover:bg-brown-700 hover:border-brown-700 hover:scale-95 transition-transform duration-300 transform-gpu"
+                    disabled={isSaving}
+                    className={`px-4 py-2 rounded text-white ${
+                      isSaving ? 'bg-gray-400 cursor-not-allowed' : 'btn btn-primary border-brown-6 bg-brown-6 text-white rounded px-7 py-2 hover:bg-brown-700 hover:border-brown-700 hover:scale-95 transition-transform duration-300 transform-gpu'
+                    }`}
                     style={{
                       height: '35px',
                       width: '80px',
@@ -1424,7 +1446,7 @@ export default function AdminDashboard() {
                       lineHeight: '25px',
                     }}
                   >
-                    Save
+                    {isSaving ? 'Saving...' : 'Save'}
                   </button>
                  
                 </div>
@@ -2100,7 +2122,7 @@ export default function AdminDashboard() {
         return (
           <div className="bg-brown-1 p-6 rounded-lg shadow-lg">
             <h2 className="text-xl font-bold mb-4 text-black">Registered Users</h2>
-      
+
             <div className="max-h-[500px] overflow-y-auto rounded-lg border border-brown-300 shadow-inner">
               <table className="min-w-full text-left text-sm text-gray-800">
                 <thead className="sticky top-0 z-10 bg-brown-6 text-white shadow">
@@ -2110,6 +2132,7 @@ export default function AdminDashboard() {
                     <th className="p-3 text-left">Email</th>
                     <th className="p-3 text-left">Full Name</th>
                     <th className="p-3 text-left">Strand</th>
+                    <th className="p-3 text-left">Personality</th>
                     <th className="p-3 text-left">Knowledge</th>
                     <th className="p-3 text-left">Program</th>
                     <th className="p-3 text-left">%</th>
@@ -2128,9 +2151,99 @@ export default function AdminDashboard() {
                         {user.first_name} {user.middle_name || ''} {user.last_name || ''} {user.extension || ''}
                       </td>
                       <td className="p-3">{user.strand}</td>
-                      <td className="p-3">{user.top_subject}</td>
-                      <td className="p-3">{user.program_name}</td>
-                      <td className="p-3">{user.top_subject_percentage}</td>
+                      {/* Personality Dropdown */}
+                      <td className="p-3">
+                        {Array.isArray(user.top_3_personality) && user.top_3_personality.length > 0 ? (
+                          <div>
+                            {/* Main top personality */}
+                            <div
+                              className="flex items-center justify-between cursor-pointer"
+                              onClick={() =>
+                                setOpenPersonalityDropdown(openPersonalityDropdown === user.user_id ? null : user.user_id)
+                              }
+                            >
+                              <span>
+                                {user.top_3_personality[0].type} ({user.top_3_personality[0].confidence})
+                              </span>
+                              {openPersonalityDropdown === user.user_id ? <FaChevronUp /> : <FaChevronDown />}
+                            </div>
+
+                            {/* Other personalities */}
+                            {openPersonalityDropdown === user.user_id && user.top_3_personality.length > 1 && (
+                              <div className="mt-2 ml-2 text-gray-700 text-sm">
+                                {user.top_3_personality.slice(1).map((p, idx) => (
+                                  <div key={idx} className="border-l-2 border-brown-4 pl-2">
+                                    {p.type} ({p.confidence})
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 italic">No data</span>
+                        )}
+                      </td>
+
+
+                      {/* Knowledge Dropdown */}
+                      <td className="p-3">
+                        {user.top_3_knowledge?.length > 0 ? (
+                          <div>
+                            <div
+                              className="flex items-center justify-between cursor-pointer"
+                              onClick={() =>
+                                setOpenKnowledgeDropdown(openKnowledgeDropdown === user.user_id ? null : user.user_id)
+                              }
+                            >
+                              <span>
+                                {user.top_3_knowledge[0].subject} ({user.top_3_knowledge[0].percentage})
+                              </span>
+                              {openKnowledgeDropdown === user.user_id ? <FaChevronUp /> : <FaChevronDown />}
+                            </div>
+
+                            {openKnowledgeDropdown === user.user_id && (
+                              <div className="mt-2 ml-2 text-gray-700 text-sm">
+                                {user.top_3_knowledge.slice(1).map((k, idx) => (
+                                  <div key={idx} className="border-l-2 border-brown-4 pl-2">
+                                    {k.subject} ({k.percentage})
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 italic">No data</span>
+                        )}
+                      </td>
+
+                      {/* Program Dropdown */}
+                      <td className="p-3">
+                        {user.recommended_programs?.length > 0 ? (
+                          <div>
+                            <div
+                              className="flex items-center justify-between cursor-pointer"
+                              onClick={() =>
+                                setOpenProgramDropdown(openProgramDropdown === user.user_id ? null : user.user_id)
+                              }
+                            >
+                              <span>{user.recommended_programs[0].program_name}</span>
+                              {openProgramDropdown === user.user_id ? <FaChevronUp /> : <FaChevronDown />}
+                            </div>
+
+                            {openProgramDropdown === user.user_id && (
+                              <div className="mt-2 ml-2 text-gray-700 text-sm">
+                                {user.recommended_programs.slice(1).map((p, idx) => (
+                                  <div key={idx} className="border-l-2 border-brown-4 pl-2">
+                                    {p.program_name}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 italic">No data</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -3935,5 +4048,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
-
 
