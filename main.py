@@ -58,19 +58,6 @@ from fastapi.middleware.cors import CORSMiddleware
 # ---------- FastAPI ----------
 app = FastAPI()
 
-origins = [
-    "https://pathfinder-yourbest-recommender.vercel.app",
-    "https://pathfinder-sigma-self.vercel.app",
-    "https://pathfinder-io.onrender.com",              # for local testing
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,            # allowed frontend URLs
-    allow_credentials=True,
-    allow_methods=["*"],              # allows all HTTP methods (GET, POST, OPTIONS, etc.)
-    allow_headers=["*"],              # allows all headers
-)
 # include routes
 
 logger = logging.getLogger(__name__)
@@ -90,18 +77,19 @@ load_dotenv()
 # ---------- Config ----------
 
 # ---------- SMTP / OTP settings ----------
-# SMTP_SERVER = "smtp.gmail.com"
-# SMTP_PORT = 587
-# SENDER_EMAIL = "hyouka309@gmail.com"
-# SENDER_PASS = "rhav bkow gzjd spuu"  # Use your Gmail App Password, not actual Gmail password
-# OTP_EXPIRY_SECONDS = 300  # 5 minutes
-# OTP_RESEND_COOLDOWN = 30  # 30 seconds
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+SENDER_EMAIL = "hyouka309@gmail.com"
+SENDER_PASS = "rhav bkow gzjd spuu"  # Use your Gmail App Password, not actual Gmail password
+OTP_EXPIRY_SECONDS = 300  # 5 minutes
+OTP_RESEND_COOLDOWN = 30  # 30 seconds
 
 # Email (SMTP) settings
 # SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 # SENDER_PASS = os.getenv("SENDER_PASS")
 # SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 # SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+
 # OTP settings
 OTP_EXPIRY_SECONDS = int(os.getenv("OTP_EXPIRY_SECONDS", 300))  # 5 minutes
 OTP_RESEND_COOLDOWN = int(os.getenv("OTP_RESEND_COOLDOWN", 30))  # 30 seconds
@@ -113,6 +101,15 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # restrict in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(personality.router)
 app.include_router(scholastic.router)
@@ -204,15 +201,16 @@ def get_registered_users():
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
 
-            # Fetch all users
+            # ✅ Fetch all users
             cursor.execute("SELECT * FROM user_information")
             users = cursor.fetchall() or []
 
             results = []
+
             for user in users:
                 user_id = user["user_id"]
 
-                # 🎓 Get knowledge strand and top-performing subject
+                # ✅ Get knowledge strand + raw scores
                 cursor.execute("""
                     SELECT 
                         strand,
@@ -225,30 +223,103 @@ def get_registered_users():
                 """, (user_id,))
                 knowledge_row = cursor.fetchone()
 
-                top_subject = None
-                top_score = None
                 strand = None
+                top3_knowledge = []
+
                 if knowledge_row:
                     strand = knowledge_row["strand"]
-                    scores = {k: v for k, v in knowledge_row.items() 
-                              if k not in ["user_sk_id", "user_id", "strand"] and v is not None}
-                    if scores:
-                        top_subject = max(scores, key=scores.get)
-                        top_score = scores[top_subject] * 100  # convert to %
+                    scores = {
+                        k: v for k, v in knowledge_row.items()
+                        if k not in ["user_sk_id", "user_id", "strand"] and v is not None
+                    }
+                    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+                    top3_knowledge = [
+                        {"subject": s[0], "percentage": f"{s[1] * 100:.2f}%"}
+                        for s in sorted_scores[:3]
+                    ]
 
-                # 🎯 Get first recommended program from test_result
+                # ✅ Get top 3 recommended programs
                 cursor.execute("""
-                    SELECT pi.program_name, pi.program_details
-                    FROM test_result tr
-                    JOIN program_information pi ON tr.program_id = pi.program_id
-                    WHERE tr.user_id = %s
-                    ORDER BY tr.test_result_id ASC
-                    LIMIT 1
+                    SELECT 
+                        p.program_name,
+                        p.program_details,
+                        urp.program_rank
+                    FROM user_recommended_program urp
+                    JOIN program_information p 
+                        ON urp.program_id = p.program_id
+                    WHERE urp.user_id = %s
+                    ORDER BY urp.program_rank ASC
+                    LIMIT 3
                 """, (user_id,))
-                program_row = cursor.fetchone()
-                program_name = program_row["program_name"] if program_row else "N/A"
-                program_details = program_row["program_details"] if program_row else None
+                program_rows = cursor.fetchall() or []
+                top3_programs = [
+                    {
+                        "program_name": row["program_name"],
+                        "program_details": row["program_details"],
+                        "rank": row["program_rank"]
+                    }
+                    for row in program_rows
+                ]
 
+                # ✅ PERSONALITY SECTION
+                # 1️⃣ Check if user already has a saved personality result
+                cursor.execute("""
+                    SELECT p.personality_type
+                    FROM user_personality_result upr
+                    JOIN personality p ON upr.personality_id = p.personality_id
+                    WHERE upr.user_id = %s
+                """, (user_id,))
+                existing_personality = cursor.fetchall()
+
+                top_personalities = []
+
+                if existing_personality:
+                    # If user already has stored personality results
+                    top_personalities = [
+                        {"type": p["personality_type"], "confidence": "Highest"}
+                        for p in existing_personality
+                    ]
+                else:
+                    # 2️⃣ Compute from their personality test answers
+                    cursor.execute("""
+                        SELECT pt.personality_id, COUNT(*) AS score
+                        FROM user_personality_test upt
+                        JOIN personality_test pt 
+                            ON upt.personality_test_id = pt.personality_test_id
+                        WHERE upt.user_id = %s
+                        GROUP BY pt.personality_id
+                    """, (user_id,))
+                    score_rows = cursor.fetchall()
+
+                    if score_rows:
+                        # Find the max score among all personality categories
+                        max_score = max(row["score"] for row in score_rows)
+
+                        # Get all personality IDs that share the max score
+                        top_personality_ids = [
+                            row["personality_id"]
+                            for row in score_rows
+                            if row["score"] == max_score
+                        ]
+
+                        # Fetch their names from `personality` table
+                        format_strings = ','.join(['%s'] * len(top_personality_ids))
+                        cursor.execute(f"""
+                            SELECT personality_type
+                            FROM personality
+                            WHERE personality_id IN ({format_strings})
+                        """, tuple(top_personality_ids))
+                        fetched_personalities = cursor.fetchall()
+
+                        top_personalities = [
+                            {"type": row["personality_type"], "confidence": "Highest"}
+                            for row in fetched_personalities
+                        ]
+                    else:
+                        # No answers found for this user
+                        top_personalities = []
+
+                # ✅ Append user info + computed results
                 results.append({
                     "user_id": user.get("user_id"),
                     "email": user.get("email"),
@@ -257,11 +328,16 @@ def get_registered_users():
                     "middle_name": user.get("middle_name"),
                     "last_name": user.get("last_name"),
                     "extension": user.get("extension"),
+
+                    # ✅ Knowledge
                     "strand": strand or "N/A",
-                    "top_subject": top_subject or "N/A",  # Now shown under "Knowledge"
-                    "top_subject_percentage": f"{top_score:.2f}%" if top_score else "N/A",
-                    "program_name": program_name,
-                    "program_details": program_details,
+                    "top_3_knowledge": top3_knowledge,
+
+                    # ✅ Recommended programs
+                    "recommended_programs": top3_programs,
+
+                    # ✅ Personality (supports 1–4 ties)
+                    "top_3_personality": top_personalities
                 })
 
             return results
@@ -273,13 +349,6 @@ def get_registered_users():
             status_code=500,
             detail=f"Failed to fetch registered users: {str(e)}"
         )
-
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to fetch registered users: {str(e)}")
-
 
 
 
@@ -407,59 +476,6 @@ def resend_password_reset_otp(req: ResendPasswordResetOTPRequest):
     return {"success": True, "message": "OTP resent to your email"}
 
 # ---------- Utility: send OTP ----------
-# def send_otp_via_email(email: str, otp: str, purpose: str, fullname: str | None = None):
-#     """
-#     Sends OTP by SMTP and personalizes email for password reset or registration.
-#     """
-#     conn = get_db_connection()
-#     if purpose == "reset":
-#         try:
-#             cursor = conn.cursor(dictionary=True)
-#             cursor.execute("""
-#                 SELECT first_name, middle_name, last_name, extension
-#                 FROM user_information
-#                 WHERE email = %s
-#             """, (email,))
-#             user = cursor.fetchone()
-#             if not user:
-#                 raise HTTPException(status_code=404, detail="User not found")
-
-#             full_name = f"{user['first_name']} " \
-#                         f"{user['middle_name']+' ' if user['middle_name'] else ''}" \
-#                         f"{user['last_name'] or ''}" \
-#                         f"{' '+user['extension'] if user['extension'] else ''}".strip()
-
-#         except Exception as e:
-#             raise HTTPException(status_code=500, detail=f"Database error: {e}")
-#     else:
-#         full_name = fullname if fullname else "User"
-#     # Dynamic subject based on purpose
-#     if purpose == "register":
-#         subject = "Complete your registration - Pathfinder"
-#     else:  # reset
-#         subject = "Reset your password - Pathfinder"
-
-#     html_content = get_otp_email_html(otp, full_name, purpose)
-#     msg = MIMEText(html_content, "html")
-#     msg["Subject"] = subject
-#     msg["From"] = SENDER_EMAIL if SENDER_EMAIL else "no-reply@example.com"
-#     msg["To"] = email
-
-#     if not SENDER_EMAIL or not SENDER_PASS:
-#         logger.warning("SENDER_EMAIL/SENDER_PASS not configured — printing OTP to logs for local testing.")
-#         logger.info("OTP for %s is: %s", email, otp)
-#         return
-
-#     try:
-#         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-#             server.starttls()
-#             server.login(SENDER_EMAIL, SENDER_PASS)
-#             server.sendmail(SENDER_EMAIL, [email], msg.as_string())
-#         logger.info("Sent OTP email to %s", email)
-#     except Exception as e:
-#         logger.exception("Failed to send OTP email")
-#         raise HTTPException(status_code=500, detail=f"Failed to send OTP: {e}")
-
 def send_otp_via_email(email: str, otp: str, purpose: str, fullname: str | None = None):
     """
     Sends OTP using SendGrid API with personalized HTML templates.
@@ -634,6 +650,106 @@ def get_otp_email_html(otp: str, full_name: str, purpose: str) -> str:
     </html>
     """
 
+
+META_PATH = "training_meta.json"
+
+def get_training_metadata():
+    """Load stored training metadata (row count, columns, timestamp)."""
+    if os.path.exists(META_PATH):
+        try:
+            with open(META_PATH, "r") as f:
+                return json.load(f)
+        except Exception:
+            logger.warning("Failed to read training metadata.")
+    return {"last_row_count": 0, "last_columns": [], "last_updated": None}
+
+
+def save_training_metadata(row_count, columns):
+    """Save metadata after retraining."""
+    meta = {
+        "last_row_count": row_count,
+        "last_columns": columns,
+        "last_updated": datetime.now().isoformat()
+    }
+    try:
+        with open(META_PATH, "w") as f:
+            json.dump(meta, f)
+        logger.info("Training metadata updated.")
+    except Exception as e:
+        logger.warning(f"Failed to save training metadata: {e}")
+
+from datetime import datetime
+
+def retrain_if_new_data():
+    now = datetime.now()
+
+   
+    if now.hour != 0:
+        logger.debug(f" Not midnight yet ({now.strftime('%H:%M')}). Skipping retraining check.")
+        return
+
+    meta = get_training_metadata()
+    last_updated_str = meta.get("last_updated")
+
+    # Prevent retraining multiple times during the same midnight hour
+    if last_updated_str:
+        try:
+            last_updated = datetime.fromisoformat(last_updated_str)
+            if last_updated.date() == now.date():
+                logger.info("🕛 Retraining already done today. Skipping.")
+                return
+        except Exception:
+            logger.warning("Failed to parse last_updated from metadata.")
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Check schema for data_ table
+        cursor.execute("SHOW COLUMNS FROM data_")
+        data_columns = [row["Field"] for row in cursor.fetchall()]
+
+        # Check schema for knowledge_data (joined table)
+        cursor.execute("SHOW COLUMNS FROM knowledge_data")
+        knowledge_columns = [row["Field"] for row in cursor.fetchall()]
+
+        # Combine both (with prefix to avoid collisions)
+        all_columns = [f"data_.{col}" for col in data_columns] + [f"kdt.{col}" for col in knowledge_columns]
+
+        # Count rows
+        cursor.execute("SELECT COUNT(*) AS cnt FROM data_")
+        row_count = cursor.fetchone()["cnt"]
+
+        cursor.close()
+        conn.close()
+
+    except Exception as e:
+        logger.warning(f"Could not check for retraining conditions: {e}")
+        return
+
+    last_count = meta.get("last_row_count", 0)
+    last_columns = meta.get("last_columns", [])
+
+    # Detect changes
+    new_rows = row_count > last_count
+    new_columns = set(all_columns) != set(last_columns)
+
+    if new_rows or new_columns:
+        logger.info(
+            f"Detected changes — Rows: {last_count} → {row_count}, "
+            f"Schema changed: {new_columns}. Retraining..."
+        )
+
+        svm, knn, scaler, encoder = train_and_save_models()
+        if all([svm, knn, scaler, encoder]):
+            save_training_metadata(row_count, all_columns)
+            logger.info("✅ Retraining successful — models replaced.")
+        else:
+            logger.warning("⚠️ Retraining failed — keeping old models.")
+    else:
+        logger.info(f"No new data or schema changes detected (rows={row_count}). Skipping retraining.")
+
+
 def safe_load_model(path, description):
     try:
         if not os.path.exists(path):
@@ -781,6 +897,36 @@ if not all([svm_model, knn_model, scaler, label_encoder]):
 
     threading.Thread(target=train_bg, daemon=True).start()
 
+# Always check for new data in the background
+def retrain_daemon(interval=600):
+    """Runs retraining check periodically (every 10 minutes by default)."""
+    while True:
+        try:
+            retrain_if_new_data()
+        except Exception:
+            logger.exception("Retrain check failed.")
+        time.sleep(interval)
+
+# Start the background thread
+import time
+threading.Thread(target=retrain_daemon, daemon=True).start()\
+
+# def retrain_daemon():
+#     """Runs retraining once per day at midnight."""
+#     while True:
+#         try:
+#             retrain_if_new_data()
+#         except Exception:
+#             logger.exception("Retrain check failed.")
+
+#         # Calculate seconds until next midnight
+#         now = datetime.now()
+#         next_midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+#         sleep_seconds = (next_midnight - now).total_seconds()
+
+#         logger.info(f"🕒 Next retrain check scheduled in {sleep_seconds/3600:.2f} hours (at {next_midnight}).")
+#         time.sleep(sleep_seconds)
+
 
 # ---------- fuzzy system ----------
 def build_fuzzy_weight_system():
@@ -846,28 +992,29 @@ def predict_personality(user_id: int):
 
             # ---------- STEP 0: Check if user already has test_result ----------
             cursor.execute("""
-                SELECT tr.*, pi.program_name
-                FROM test_result tr
-                LEFT JOIN program_information pi ON tr.program_id = pi.program_id
-                WHERE tr.user_id = %s
-                AND tr.program_id IS NOT NULL
-            """, (user_id,))
+                    SELECT urp.*, pi.program_name
+                    FROM user_recommended_program urp
+                    LEFT JOIN program_information pi ON urp.program_id = pi.program_id
+                    WHERE urp.user_id = %s
+                    AND urp.program_id IS NOT NULL
+                    ORDER BY urp.program_rank ASC
+                """, (user_id,))
             existing_results = cursor.fetchall()
 
-        if existing_results:
-            recorded_programs = [row["program_name"] for row in existing_results if row["program_name"]]
-            if recorded_programs:
-                print(f"[INFO] Existing programs found for user {user_id}: {recorded_programs}")
-                return {
-                    "user_id": user_id,
-                    "already_recorded": True,
-                    "recorded_programs": recorded_programs,
-                    "message": "User already has recorded recommended programs.",
-                    "final_top3": [{"label": p, "probability": 100/len(recorded_programs)} for p in recorded_programs],
-                    "top1": recorded_programs[0] if recorded_programs else None,
-                    "top2": recorded_programs[1] if len(recorded_programs) > 1 else None,
-                    "top3": recorded_programs[2] if len(recorded_programs) > 2 else None,
-                }
+            if existing_results:
+                recorded_programs = [row["program_name"] for row in existing_results if row["program_name"]]
+                if recorded_programs:
+                    print(f"[INFO] Existing programs found for user {user_id}: {recorded_programs}")
+                    return {
+                        "user_id": user_id,
+                        "already_recorded": True,
+                        "recorded_programs": recorded_programs,
+                        "message": "User already has recorded recommended programs.",
+                        "final_top3": [{"label": p, "probability": 100/len(recorded_programs)} for p in recorded_programs],
+                        "top1": recorded_programs[0] if recorded_programs else None,
+                        "top2": recorded_programs[1] if len(recorded_programs) > 1 else None,
+                        "top3": recorded_programs[2] if len(recorded_programs) > 2 else None,
+                    }
 
         # ---------- STEP 1: Fetch Personality Test Answers ----------
         print("[INFO] Fetching personality test answers...")
@@ -973,7 +1120,7 @@ def predict_personality(user_id: int):
         print(f"[INFO] Prediction completed in {elapsed:.3f}s (w_svm={w_svm:.3f})")
         print(f"[DEBUG] Final Top 3 Programs: {final_top3_readable}")
 
-        # ---------- STEP 6: Save to DB ----------
+        # ---------- STEP 1: No existing recommendations, insert new top 3 ----------
         top1 = final_top3_readable[0]["label"] if len(final_top3_readable) > 0 else None
         top2 = final_top3_readable[1]["label"] if len(final_top3_readable) > 1 else None
         top3 = final_top3_readable[2]["label"] if len(final_top3_readable) > 2 else None
@@ -983,6 +1130,7 @@ def predict_personality(user_id: int):
             program_names = [top1, top2, top3]
             program_ids = {}
 
+            # --- STEP 1A: Get corresponding program IDs ---
             for name in program_names:
                 if not name:
                     continue
@@ -994,30 +1142,29 @@ def predict_personality(user_id: int):
                 if result:
                     program_ids[name] = result["program_id"]
 
-            for name, pid in program_ids.items():
-                cursor.execute("SELECT personality_id FROM test_result WHERE user_id = %s LIMIT 1", (user_id,))
-                row = cursor.fetchone()
-                personality_id = row["personality_id"] if row else None
-                cursor.fetchall()  # ✅ ensures buffer is cleared
-
+            # --- STEP 1B: Insert with program_rank ---
+            rank = 1
+            for name in program_names:
+                if not name or name not in program_ids:
+                    continue
+                pid = program_ids[name]
                 cursor.execute("""
-                    INSERT INTO test_result (test_result_id, personality_id, user_id, program_id)
-                    VALUES (NULL, %s, %s, %s)
-                """, (personality_id, user_id, pid))
+                    INSERT INTO user_recommended_program (user_id, program_id, program_rank)
+                    VALUES (%s, %s, %s);
+                """, (user_id, pid, rank))
+                rank += 1
 
             conn.commit()
-
-        print(f"[INFO] Programs saved for user {user_id}: {program_ids}")
+            print(f"[INFO] Programs saved for user {user_id}: {program_ids}")
 
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
             cursor.execute("""
-                DELETE FROM test_result 
+                DELETE FROM user_recommended_program 
                 WHERE user_id = %s AND program_id IS NULL;
             """, (user_id,))
             conn.commit()
-
-        print(f"[INFO] Cleanup complete for user {user_id}")
+            print(f"[INFO] Cleanup complete for user {user_id}")
 
         # ---------- STEP 7: Return data for frontend ----------
         return {
@@ -2274,70 +2421,46 @@ def get_test_results(user_id: int):
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
 
-            # ---------- STEP 1: Compute highest knowledge (always live) ----------
+            # ---------- STEP 1: Compute top 3 highest knowledge ----------
             cursor.execute("""
-                SELECT COLUMN_NAME
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = 'user_scholastic_knowledge_test'
-            """)
-            all_cols = [r["COLUMN_NAME"] for r in (cursor.fetchall() or [])]
-            exclude = {"user_sk_id", "user_id", "strand"}
-            category_fields = [c for c in all_cols if c not in exclude]
-
-            cursor.execute("""
-                SELECT *
-                FROM user_scholastic_knowledge_test
-                WHERE user_id = %s
-                ORDER BY user_sk_id DESC
-                LIMIT 1
+                SELECT kt.category, COUNT(*) AS total_items,
+                       SUM(CASE WHEN ukt.score = 1 THEN 1 ELSE 0 END) AS correct_answers
+                FROM user_knowledge_test ukt
+                JOIN knowledge_test kt ON ukt.knowledge_id = kt.knowledge_id
+                WHERE ukt.user_id = %s
+                GROUP BY kt.category
             """, (user_id,))
-            user_sk = cursor.fetchone()
+            category_scores = cursor.fetchall() or []
 
-            top_categories = []
-            top_value = None
-            if user_sk and category_fields:
-                for cat in category_fields:
-                    try:
-                        value = float(user_sk.get(cat) or 0.0)
-                    except Exception:
-                        value = 0.0
-                    if top_value is None or value > top_value:
-                        top_value = value
-                        top_categories = [cat]
-                    elif value == top_value:
-                        top_categories.append(cat)
+            category_results = []
+            for row in category_scores:
+                total = row["total_items"] or 1
+                correct = row["correct_answers"] or 0
+                accuracy = correct / total if total > 0 else 0
+                category_results.append({
+                    "category": row["category"],
+                    "score": f"{correct}/{total}",
+                    "accuracy": round(accuracy, 4)
+                })
 
-            # ---------- STEP 2: Fetch personality ----------
+            category_results.sort(key=lambda x: x["accuracy"], reverse=True)
+            top3_knowledge = category_results[:3]
+            top_categories = [c["category"] for c in top3_knowledge]
+            top_values = [c["score"] for c in top3_knowledge]
+
+            # ---------- STEP 2: Fetch or compute personality ----------
             cursor.execute("""
-                SELECT tr.*, p.personality_type
-                FROM test_result tr
-                JOIN personality p ON tr.personality_id = p.personality_id
-                WHERE tr.user_id = %s
-                LIMIT 1
+                SELECT upr.personality_id, p.personality_type
+                FROM user_personality_result upr
+                JOIN personality p ON upr.personality_id = p.personality_id
+                WHERE upr.user_id = %s
             """, (user_id,))
-            existing_result = cursor.fetchone()
+            existing_results = cursor.fetchall() or []
 
-            personality_type = existing_result.get("personality_type", "N/A") if existing_result else "N/A"
-
-            # ---------- STEP 3: Fetch saved recommended programs ----------
-            cursor.execute("""
-                SELECT pi.program_name, pi.program_details
-                FROM test_result tr
-                JOIN program_information pi ON tr.program_id = pi.program_id
-                WHERE tr.user_id = %s
-                ORDER BY tr.test_result_id ASC
-                LIMIT 3
-            """, (user_id,))
-            program_rows = cursor.fetchall() or []
-
-            final_top3 = [
-                {"label": row["program_name"], "details": row["program_details"] or ""}
-                for row in program_rows
-            ]
-
-            # ---------- STEP 4: Handle no existing personality ----------
-            if not existing_result:
+            if existing_results:
+                personality_types = list({row["personality_type"] for row in existing_results})
+            else:
+                # Compute personality manually if not stored yet
                 cursor.execute("""
                     SELECT p.personality_id, p.personality_type, upt.answer
                     FROM user_personality_test upt
@@ -2346,46 +2469,80 @@ def get_test_results(user_id: int):
                     WHERE upt.user_id = %s
                 """, (user_id,))
                 personality_rows = cursor.fetchall() or []
+                personality_types = []
 
-                personality_id = None
                 if personality_rows:
                     counts = {}
                     for row in personality_rows:
-                        if int(row["answer"]) == 1:  # assuming 1 = Agree
-                            ptype = row["personality_type"]
-                            counts[ptype] = counts.get(ptype, 0) + 1
+                        if int(row["answer"]) == 1:  # "Agree" answers
+                            pid = row["personality_id"]
+                            counts[pid] = counts.get(pid, 0) + 1
+
                     if counts:
-                        personality_type = max(counts, key=counts.get)
-                        for row in personality_rows:
-                            if row["personality_type"] == personality_type:
-                                personality_id = row["personality_id"]
-                                break
+                        max_count = max(counts.values())
+                        top_personality_ids = [pid for pid, val in counts.items() if val == max_count]
 
-                if personality_id is not None:
-                    cursor.execute("""
-                        INSERT INTO test_result (test_result_id, personality_id, user_id, program_id)
-                        VALUES (NULL, %s, %s, NULL)
-                    """, (personality_id, user_id))
-                    conn.commit()
+                        # Get unique personality types only
+                        personality_types = list({
+                            row["personality_type"]
+                            for row in personality_rows
+                            if row["personality_id"] in top_personality_ids
+                        })
 
-        # ---------- STEP 5: Return combined data ----------
+                        # Insert all top personalities
+                        for pid in top_personality_ids:
+                            cursor.execute("""
+                                INSERT INTO user_personality_result (user_id, personality_id)
+                                VALUES (%s, %s)
+                            """, (user_id, pid))
+                        conn.commit()
+
+                    else:
+                        personality_types = ["N/A"]
+                else:
+                    personality_types = ["N/A"]
+
+            # ---------- STEP 3: Fetch recommended programs (with rank) ----------
+            cursor.execute("""
+                SELECT pi.program_name, pi.program_details, urp.program_rank
+                FROM user_recommended_program urp
+                JOIN program_information pi ON urp.program_id = pi.program_id
+                WHERE urp.user_id = %s
+                ORDER BY urp.program_rank ASC
+            """, (user_id,))
+            program_rows = cursor.fetchall() or []
+
+            if program_rows:
+                final_top3 = [
+                    {
+                        "label": row["program_name"],
+                        "details": row["program_details"] or "",
+                        "rank": row["program_rank"]
+                    }
+                    for row in program_rows
+                ]
+            else:
+                final_top3 = [{"label": "N/A", "details": "", "rank": None}]
+
+        # ---------- STEP 4: Return combined results ----------
         return {
             "success": True,
-            "personality_type": personality_type,
+            "personality_types": personality_types,
             "highest_knowledge_categories": top_categories if top_categories else ["N/A"],
-            "highest_knowledge_value": round(top_value, 4) if top_value is not None else 0.0,
+            "highest_knowledge_values": top_values if top_values else [],
             "final_top3": final_top3,
-            "top1": final_top3[0]["label"] if len(final_top3) > 0 else None,
-            "top2": final_top3[1]["label"] if len(final_top3) > 1 else None,
-            "top3": final_top3[2]["label"] if len(final_top3) > 2 else None,
-            "saved_to_test_result": bool(existing_result),
-            "source": "existing_record" if existing_result else "computed_no_insert",
+            "program_count": len(program_rows),
+            "saved_to_user_personality_result": bool(existing_results),
+            "source": "existing_record" if existing_results else "computed_and_inserted",
         }
 
     except Exception as e:
         import traceback
         print("❌ ERROR in get_test_results:", traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Failed to fetch test results: {e}")
+
+
+
 
 @app.get("/api/program/{program_name}")
 def get_program_details(program_name: str):
@@ -2530,32 +2687,26 @@ def get_total_users_timeline():
 def get_top_programs():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+
     cursor.execute("""
-        SELECT 
-            p.program_id, 
-            p.program_name, 
-            p.program_details, 
-            COUNT(t.program_id) AS count
-        FROM test_result t
-        JOIN program_information p ON t.program_id = p.program_id
-        WHERE t.program_id IS NOT NULL
+        SELECT
+            p.program_id,
+            p.program_name,
+            p.program_details,
+            COUNT(urp.program_id) AS count
+        FROM user_recommended_program urp
+        JOIN program_information p 
+            ON urp.program_id = p.program_id
+        WHERE urp.program_id IS NOT NULL
         GROUP BY p.program_id, p.program_name, p.program_details
         ORDER BY count DESC
         LIMIT 3;
     """)
+
     results = cursor.fetchall()
     cursor.close()
     conn.close()
     return results
-
-
-
-
-
-
-
-
-
 
 
 
