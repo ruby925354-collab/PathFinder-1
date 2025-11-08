@@ -48,11 +48,12 @@ def get_knowledge_questions():
                     "question": row["question"],
                     "options": [],
                     "answer": row["answer"],
-                    "timer": row.get("timer", 60)
+                    "timer": int(row["timer"])
                 }
 
             if row["choises"]:
                 questions[qid]["options"].append(row["choises"])
+        print(list(questions.values()))
 
         return list(questions.values())
 
@@ -111,11 +112,11 @@ def update_knowledge_question(knowledge_id: int, data: dict):
         if not cursor.fetchone():
             raise HTTPException(status_code=404, detail="Question not found.")
 
-        # Dynamically build update fields
+        # 🔸 Dynamically build update fields
         fields = []
         values = []
 
-        for field in ["knowledge_type", "category", "category_type", "question", "answer", "timer"]:
+        for field in ["knowledge_type", "category", "question", "answer", "timer", "category_type"]:
             if field in data:
                 fields.append(f"{field} = %s")
                 values.append(data[field])
@@ -125,9 +126,8 @@ def update_knowledge_question(knowledge_id: int, data: dict):
             values.append(knowledge_id)
             cursor.execute(sql, tuple(values))
 
-        # 🔹 Option updates
+        # 🔹 Update ALL options if provided as a list
         if "options" in data and isinstance(data["options"], list):
-            # Remove old options and replace with new ones
             cursor.execute("DELETE FROM knowledge_options WHERE knowledge_id = %s;", (knowledge_id,))
             for opt in data["options"]:
                 cursor.execute("""
@@ -135,13 +135,23 @@ def update_knowledge_question(knowledge_id: int, data: dict):
                     VALUES (%s, %s)
                 """, (knowledge_id, opt))
 
+        # 🔹 Update a SINGLE option if old/new provided
+        elif "old_option" in data and "new_option" in data and data["old_option"] and data["new_option"]:
+            cursor.execute("""
+                UPDATE knowledge_options
+                SET choises = %s
+                WHERE knowledge_id = %s AND choises = %s
+            """, (data["new_option"], knowledge_id, data["old_option"]))
+
         conn.commit()
         conn.close()
+
         return {"message": "Knowledge question updated successfully."}
 
     except Exception as e:
         print("⚠️ ERROR updating knowledge question:", e)
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 # 🔴 DELETE question
