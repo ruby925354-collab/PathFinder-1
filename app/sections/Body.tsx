@@ -7,6 +7,8 @@ import RegisterModal from '@/app/components/RegisterModal';
 import OTPModal from '@/app/components/OTPModal';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { FiSend, FiMessageCircle, FiX } from 'react-icons/fi';
+import axios from 'axios';
 
 const Body = () => {
   const { isLoggedIn, login } = useAuth();
@@ -14,16 +16,16 @@ const Body = () => {
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isOTPModalOpen, setIsOTPModalOpen] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState<string>('');
-  const [mounted, setMounted] = useState(false); // 🚨 fix for SSR mismatch
+  const [lastSeenMessage, setLastSeenMessage] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
 
-  useEffect(() => setMounted(true), []); // Run only on client
+  useEffect(() => setMounted(true), []);
 
   const openLoginModal = () => {
     setIsRegisterModalOpen(false);
     setIsLoginModalOpen(true);
   };
-
   const closeLoginModal = () => setIsLoginModalOpen(false);
   const openRegisterModal = () => {
     setIsLoginModalOpen(false);
@@ -64,18 +66,6 @@ const Body = () => {
         animate={{ y: [0, -40, 0], opacity: [0.7, 1, 0.7] }}
         transition={{ repeat: Infinity, duration: 10 }}
       />
-             {/* 🪩 DVD-style Pathfinder Logos */}
-      {/* {mounted && ( // ✅ Only render after hydration
-        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-          <BouncingLogo src="/Star Confidence Sticker by Pusheen.gif" delay={0} />
-          <BouncingLogo src="/Playing Video Games Sticker by Pusheen.gif" delay={0} />
-          <BouncingLogo src="/Happy Birthday Sticker by Pusheen.gif" delay={0} />
-          <BouncingLogo src="/Fat Cat Eating Sticker by Pusheen.gif" delay={0} />
-          <BouncingLogo src="/Cats Helping Sticker by Pusheen.gif" delay={0} />
-          <BouncingLogo src="/Tired Summer Time Sticker by Pusheen.gif" delay={0} />
-          <BouncingLogo src="/Cat Traveling Sticker by Pusheen.gif" delay={0} />
-        </div>
-      )} */}
 
       {/* Hero Content */}
       <motion.div
@@ -123,9 +113,207 @@ const Body = () => {
       <LoginModal isOpen={isLoginModalOpen} onClose={closeLoginModal} onSwitchToRegister={openRegisterModal} onLoginSuccess={handleLoginSuccess} />
       <RegisterModal isOpen={isRegisterModalOpen} onClose={closeRegisterModal} onSwitchToLogin={openLoginModal} onSwitchToOTP={(email: string) => openOTPModal(email)} />
       <OTPModal isOpen={isOTPModalOpen} onClose={closeOTPModal} email={registeredEmail} />
+
+      {/* 💬 Chatbot (only when logged in) */}
+      {isLoggedIn && <FloatingChatbot />}
     </section>
   );
 };
+
+/* 🧩 Floating Chatbot Component */
+const FloatingChatbot: React.FC = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<{ sender: 'user' | 'bot'; text: string }[]>([]);
+  const [input, setInput] = useState('');
+  const [miniMessage, setMiniMessage] = useState<string | null>(null);
+  const [showMiniBubble, setShowMiniBubble] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const sendMessage = async () => {
+    if (!input.trim()) return;
+    const userMessage = input.trim();
+    setMessages((prev) => [...prev, { sender: 'user', text: userMessage }]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      const response = await axios.post('http://localhost:5000/chat', { message: userMessage });
+      const botMessage = response.data.reply || '...';
+
+      // 💬 If chat is closed, show mini bubble preview immediately
+      if (!isOpen) {
+        setMiniMessage('...');
+        setShowMiniBubble(true);
+      }
+
+      // Simulate bot typing for smoother feel
+      setTimeout(() => {
+        setMessages((prev) => [...prev, { sender: 'bot', text: botMessage }]);
+
+        if (!isOpen) {
+          setMiniMessage(botMessage);
+          setShowMiniBubble(true);
+
+          // Hide after 6 seconds
+          setTimeout(() => setShowMiniBubble(false), 6000);
+        }
+      }, 400);
+
+    } catch (error) {
+      const errorMsg = '⚠️ Unable to reach AI server. Please try again later.';
+      setMessages((prev) => [...prev, { sender: 'bot', text: errorMsg }]);
+
+      if (!isOpen) {
+        setMiniMessage(errorMsg);
+        setShowMiniBubble(true);
+        setTimeout(() => setShowMiniBubble(false), 6000);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // 🟤 When user clicks "X", show the "typing..." mini bubble for a few seconds
+  const handleCloseChat = () => {
+    setIsOpen(false);
+    setMiniMessage('...');
+    setShowMiniBubble(true);
+    setTimeout(() => setShowMiniBubble(false), 4000);
+  };
+
+  return (
+    <>
+      {/* Floating Chat Icon */}
+      {!isOpen && (
+        <motion.button
+          onClick={() => setIsOpen(true)}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          className="fixed bottom-6 right-6 bg-gradient-to-r from-[#6D4C41] to-[#4E342E] text-white p-5 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 z-50"
+        >
+          <FiMessageCircle size={36} />
+        </motion.button>
+      )}
+
+      {/* 🟡 Mini Message Bubble (shows after closing or new bot reply) */}
+      {!isOpen && showMiniBubble && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          className="fixed bottom-24 right-6 bg-white shadow-lg border border-[#E0D4C2] rounded-2xl px-5 py-3 max-w-[280px] text-[#3E2723] text-base font-medium flex items-center gap-3 z-50 cursor-pointer"
+          onClick={() => {
+            setIsOpen(true);
+            setShowMiniBubble(false);
+          }}
+        >
+          {miniMessage === '...' ? (
+            <div className="flex items-center space-x-1 text-gray-500 text-xl">
+              <div className="animate-bounce">•</div>
+              <div className="animate-bounce delay-100">•</div>
+              <div className="animate-bounce delay-200">•</div>
+            </div>
+          ) : (
+            <span className="truncate">{miniMessage}</span>
+          )}
+        </motion.div>
+      )}
+
+      {/* Chat Window */}
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8, y: 30 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          transition={{ duration: 0.25 }}
+          className="fixed bottom-6 right-6 w-[480px] md:w-[560px] h-[650px] bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border border-[#E0D4C2] flex flex-col overflow-hidden z-50"
+        >
+          {/* Header */}
+          <div className="bg-gradient-to-r from-[#6D4C41] to-[#4E342E] text-white p-5 flex justify-between items-center shadow-md">
+            <div className="flex items-center gap-3">
+              <img
+                src="/PATHFINDER-logo-edited.png"
+                alt="PathFinder Logo"
+                className="w-10 h-10 object-contain"
+              />
+              <span className="font-semibold text-xl tracking-wide">Chat Assistant</span>
+            </div>
+            <button onClick={handleCloseChat} className="hover:text-gray-300 transition-colors">
+              <FiX size={26} />
+            </button>
+          </div>
+
+          {/* Chat Area */}
+          <div className="flex-1 p-6 overflow-y-auto bg-[#FAF8F5]/90 scrollbar-thin scrollbar-thumb-[#C7B8A1] scrollbar-track-transparent space-y-5">
+            {messages.length === 0 && (
+              <div className="text-center text-gray-500 text-base italic py-8">
+                👋 Hi there! How can I help you today?
+              </div>
+            )}
+
+            {messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`px-5 py-4 rounded-2xl max-w-[80%] text-lg leading-relaxed shadow ${
+                    msg.sender === 'user'
+                      ? 'bg-gradient-to-r from-[#6D4C41] to-[#4E342E] text-white rounded-br-none'
+                      : 'bg-[#EFE6DD] text-[#3E2723] rounded-bl-none'
+                  }`}
+                >
+                  {msg.text}
+                </motion.div>
+              </div>
+            ))}
+
+            {isLoading && (
+              <div className="flex items-center space-x-2 text-gray-500 text-lg ml-2">
+                <div className="animate-bounce">•</div>
+                <div className="animate-bounce delay-100">•</div>
+                <div className="animate-bounce delay-200">•</div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input Area */}
+          <div className="p-5 border-t border-gray-200 flex items-center gap-4 bg-white/95 backdrop-blur-sm">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+              placeholder="Type your message..."
+              className="flex-1 px-5 py-4 text-lg border rounded-full focus:outline-none focus:ring-2 focus:ring-[#6D4C41] placeholder:text-gray-400 bg-[#FDFBF9]"
+            />
+            <motion.button
+              onClick={sendMessage}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="bg-[#6D4C41] text-white p-4 rounded-full hover:bg-[#4E342E] transition-all shadow-md"
+            >
+              <FiSend size={22} />
+            </motion.button>
+          </div>
+        </motion.div>
+      )}
+    </>
+  );
+};
+
+
+
 
 /* 🧩 DVD-style bouncing logo (hydration-safe) */
 const BouncingLogo: React.FC<{ src: string; delay?: number }> = ({ src, delay = 0 }) => {
@@ -133,7 +321,6 @@ const BouncingLogo: React.FC<{ src: string; delay?: number }> = ({ src, delay = 
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const vel = useRef({ x: 0, y: 0 });
 
-  // Initialize position *after* mount to prevent SSR mismatch
   useEffect(() => {
     const startX = Math.random() * (window.innerWidth * 0.8);
     const startY = Math.random() * (window.innerHeight * 0.8);
@@ -146,8 +333,6 @@ const BouncingLogo: React.FC<{ src: string; delay?: number }> = ({ src, delay = 
 
   useEffect(() => {
     let raf: number;
-    let timeout: NodeJS.Timeout;
-
     const move = () => {
       const el = ref.current;
       if (!el) return;
@@ -169,11 +354,8 @@ const BouncingLogo: React.FC<{ src: string; delay?: number }> = ({ src, delay = 
       raf = requestAnimationFrame(move);
     };
 
-    timeout = setTimeout(move, delay);
-    return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(timeout);
-    };
+    raf = requestAnimationFrame(move);
+    return () => cancelAnimationFrame(raf);
   }, [delay]);
 
   return (
@@ -197,5 +379,3 @@ const BouncingLogo: React.FC<{ src: string; delay?: number }> = ({ src, delay = 
 };
 
 export default Body;
-
-
