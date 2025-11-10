@@ -138,7 +138,7 @@ const FloatingChatbot: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/chat', { message: userMessage });
+      const response = await axios.post('https://toothy-cephalic-makena.ngrok-free.dev/chat', { message: userMessage });
       const botMessage = response.data.reply || '...';
 
       // 💬 If chat is closed, show mini bubble preview immediately
@@ -379,3 +379,4 @@ const BouncingLogo: React.FC<{ src: string; delay?: number }> = ({ src, delay = 
 };
 
 export default Body;
+
