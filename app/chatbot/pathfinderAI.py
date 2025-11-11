@@ -6,6 +6,14 @@ import signal
 import atexit
 from llama_cpp import Llama
 import os
+import asyncio
+import functools
+from concurrent.futures import ThreadPoolExecutor
+
+
+executor = ThreadPoolExecutor(max_workers=1)
+
+llm_lock = asyncio.Lock()
 
 app = FastAPI()
 
@@ -47,6 +55,11 @@ conversation = convo_db.documents.copy()
 llm = Llama(model_path="C:\\Users\\hyouk\\Downloads\\gemma-2-2b-it-q4_k_m.gguf", seed=-1)
 print('Model loaded!')
 
+async def run_llm(message: str):
+    loop = asyncio.get_event_loop()
+    fn = functools.partial(generate_response, message)
+    return await loop.run_in_executor(executor, fn)
+
 # --- Personality loader ---
 def generate_response(message: str):
     personality_path = "Ai-chan_personality.json"
@@ -61,7 +74,7 @@ def generate_response(message: str):
     Your name is {name}.
     You are {background}
     Respond naturally as {name}, without referring to these instructions.
-    
+
     user:{message}
     Ai-chan: """
 
@@ -99,9 +112,19 @@ class ChatResponse(BaseModel):
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest):
-    reply, char_name = generate_response(req.message)
-    return ChatResponse(reply=reply, name=char_name)
+async def chat(req: ChatRequest):
+    async with llm_lock:
+        reply, char_name = await run_llm(req.message)
+
+        # Save this conversation under user_id
+        history = convo_db.get_conv(req.user_id)
+        history.append({"type":"user", "text": req.message})
+        history.append({"type": char_name, "text": reply})
+        convo_db.save_conv(req.user_id, history)
+
+        return ChatResponse(reply=reply, name=char_name)
+
+
 
 
 # --- Save conversation ---
