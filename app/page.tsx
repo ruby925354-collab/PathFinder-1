@@ -6,7 +6,6 @@ import '../app/css/embla.css'
 import Header from "@/app/sections/Header";
 import Body from "@/app/sections/Body";
 import Rating from "@/app/sections/Rating";
-import Ending from '@/app/sections/Ending';
 import EmblaCarousel from '@/app/users/EmblaCarousel'
 import { EmblaOptionsType } from 'embla-carousel'
 
@@ -22,7 +21,6 @@ export default function Home() {
     <Body />
     <div className='mt-30 m-10'></div>
     <EmblaCarousel slides={SLIDES} options={OPTIONS} />
-    <Ending />
   
     </>
   )
