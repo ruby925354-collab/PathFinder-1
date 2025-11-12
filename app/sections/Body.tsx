@@ -176,7 +176,7 @@ const FloatingChatbot: React.FC = () => {
     try {
       setIsLoading(true);
 
-      const response = await axios.post("http://localhost:5000/chat", {
+      const response = await axios.post("https://toothy-cephalic-makena.ngrok-free.dev/chat", {
         message: userMessage,
       });
 
@@ -398,3 +398,4 @@ const FloatingChatbot: React.FC = () => {
 
 
 export default Body;
+
