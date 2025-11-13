@@ -2,7 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaCheckCircle, FaHome, FaBrain, FaUser, FaListOl, FaTimes } from 'react-icons/fa';
+import { FaCheckCircle, FaHome, FaBrain, FaUser, FaListOl, FaTimes, FaDownload } from 'react-icons/fa';
+import PizZip from "pizzip";
+import Docxtemplater from "docxtemplater";
+
 
 interface Program {
   label: string;
@@ -63,6 +66,75 @@ const Result = () => {
 
     if (!showNotification && userId) fetchResults();
   }, [showNotification, userId]);
+
+  const handleDownloadReport = async () => {
+    if (!userId) {
+      setError("No user ID found. Please log in first.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      // Fetch the .docx template
+      const templateRes = await fetch("/templates/PathFinder.docx");
+      if (!templateRes.ok) throw new Error("Template not found");
+
+      const arrayBuffer = await templateRes.arrayBuffer();
+      const zip = new PizZip(arrayBuffer);
+      const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+
+      // Fetch report data from FastAPI
+      const reportRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/${userId}/report-data`);
+      if (!reportRes.ok) throw new Error("Failed to fetch report data");
+      const reportData = await reportRes.json();
+
+      // Render the document
+      doc.render({
+        ...reportData,
+        DATE: new Date().toLocaleDateString(),
+      });
+
+      // Convert the filled document into a Blob
+      const output = doc.getZip().generate({ type: "blob" });
+      const docxFile = new File([output], `${reportData.full_name || "User"}_PathFinder_Report.docx`, {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      // Send to FastAPI for PDF conversion
+      const formData = new FormData();
+      formData.append("file", docxFile);
+
+      const pdfRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/convert-pdf`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!pdfRes.ok) {
+        const errorText = await pdfRes.text();
+        throw new Error(`PDF conversion failed: ${errorText}`);
+      }
+
+      const pdfBlob = await pdfRes.blob();
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+
+      // Trigger browser download
+      const link = document.createElement("a");
+      link.href = pdfUrl;
+      link.download = `${reportData.full_name || "User"}_PathFinder_Report.pdf`;
+      link.click();
+
+      // Clean up URL
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Error generating PDF.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   // 🔍 Fetch program details when clicked
   const handleProgramClick = async (program: Program) => {
@@ -192,14 +264,27 @@ const Result = () => {
               )}
             </section>
 
-            {/* Home Button */}
-            <div className="flex justify-center mt-12">
+            {/* Home + Download Buttons */}
+            <div className="flex justify-center mt-12 gap-6">
               <button
                 onClick={() => router.push('/')}
                 className="flex items-center gap-3 bg-[#3E2723] text-[#EFEBE9] px-10 py-4 rounded-2xl text-2xl font-semibold hover:bg-[#4E342E] hover:scale-[1.03] transition-all duration-300 shadow-lg"
               >
                 <FaHome size={24} />
                 Return Home
+              </button>
+
+              <button
+                onClick={handleDownloadReport}
+                disabled={isLoading}
+                className={`flex items-center gap-3 px-10 py-4 rounded-2xl text-2xl font-semibold shadow-lg transition-all duration-300 ${
+                  isLoading
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-[#6D4C41] text-[#EFEBE9] hover:bg-[#5D4037] hover:scale-[1.03]"
+                }`}
+              >
+                <FaDownload size={24} />
+                {isLoading ? "Generating..." : "Download Report"}
               </button>
             </div>
           </div>
