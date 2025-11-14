@@ -54,6 +54,7 @@ from routes import scholastic
 from routes import knowledge
 from routes import feedback
 from fastapi.middleware.cors import CORSMiddleware
+from routes import printing
 
 # ---------- FastAPI ----------
 app = FastAPI()
@@ -115,6 +116,7 @@ app.include_router(personality.router)
 app.include_router(scholastic.router)
 app.include_router(knowledge.router)
 app.include_router(feedback.router)
+app.include_router(printing.router)
 
 # ---------- Pydantic models ----------
 class RegisterRequest(BaseModel):
@@ -2707,6 +2709,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
