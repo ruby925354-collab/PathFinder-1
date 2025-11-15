@@ -36,6 +36,15 @@ ChartJS.register(
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
+interface UserItem {
+  user_id: number;
+  fullname: string;
+}
+
+interface ChatMessage {
+  sender: "admin" | "user";
+  text: string;
+}
 export default function AdminDashboard() {
   // 🟢 New state for Category Type selection
   const [activeCategoryType, setActiveCategoryType] = useState<string | null>(null);
@@ -175,9 +184,66 @@ export default function AdminDashboard() {
   // State and fetching logic
 
   const [loadingPrograms, setLoadingPrograms] = useState(true);
+  const [loadingPrograms, setLoadingPrograms] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-
+  const [chatConversationId, setChatConversationId] = useState<number | null>(null);
+  const [selectedUser, setSelectedUser] = useState<number | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [conversations, setConversations] = useState<
+  {
+    conversation_id: number;
+    user_id: number;
+    fullname: string;
+    last_message: string;
+    last_sender: string;
+  }[]
+>([]);
   
+useEffect(() => {
+  const chatContainer = document.getElementById("chat-messages");
+  if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
+}, [chatMessages]);
+
+  useEffect(() => {
+    const fetchConversations = async () => {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/admin-chat/conversations`);
+        setConversations(res.data);
+      } catch (error) {
+        console.error("Error fetching conversations:", error);
+      }
+    };
+
+    fetchConversations();
+  }, []);
+  const openConversation = async (conversationId: number, userId: number) => {
+    setSelectedUser(userId);
+    setChatConversationId(conversationId);
+
+    const res = await axios.get(`${API_BASE_URL}/admin-chat/${userId}`);
+
+    setChatMessages(
+      res.data.messages.map((m: any) => ({
+        sender: m.sender,
+        text: m.message,
+      }))
+    );
+  };
+
+  const sendAdminMessage = async () => {
+    if (!chatInput.trim() || !chatConversationId) return;
+    const message = chatInput;
+    setChatInput("");
+    // Show admin message instantly
+    setChatMessages((prev) => [...prev, { sender: "admin", text: message }]);
+
+    await axios.post(`${API_BASE_URL}/admin-chat/reply`, {
+      conversation_id: chatConversationId,
+      message,
+    });
+
+  };
   useEffect(() => {
     const fetchTopPrograms = async () => {
       try {
@@ -3708,113 +3774,103 @@ export default function AdminDashboard() {
             </div>
           </div>
         );
-      case 'Activity Log':
+     case "Chats":
         return (
-          <div className="flex flex-col items-center min-h-screen px-8">
-            <h1 className="text-3xl font-bold mt-4 mb-8 text-center text-black">Log History</h1>
-            <div className="bg-brown-1 p-6 rounded-lg shadow-lg w-full max-w-4xl">
-              <div className="overflow-y-auto max-h-[450px] rounded-lg">
-                <table className="table-auto w-full border-collapse border border-gray-300 rounded-lg">
-                  <thead>
-                    <tr className="bg-brown-6 text-white">
-                      <th className="border border-gray-300 px-4 py-2">Log ID</th>
-                      <th className="border border-gray-300 px-4 py-2">Email</th>
-                      <th className="border border-gray-300 px-4 py-2">Login</th>
-                      <th className="border border-gray-300 px-4 py-2">Logout</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Example data, replace with dynamic data */}
-                    <tr className="bg-white text-black">
-                      <td className="border border-gray-300 px-4 py-2">1</td>
-                      <td className="border border-gray-300 px-4 py-2">user1@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 08:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 17:00</td>
-                    </tr>
-                    <tr className="bg-gray-100 text-black">
-                      <td className="border border-gray-300 px-4 py-2">2</td>
-                      <td className="border border-gray-300 px-4 py-2">user2@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 09:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 18:00</td>
-                    </tr>
-                    <tr className="bg-white text-black">
-                      <td className="border border-gray-300 px-4 py-2">3</td>
-                      <td className="border border-gray-300 px-4 py-2">user3@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 10:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 19:00</td>
-                    </tr>
-                    <tr className="bg-white text-black">
-                      <td className="border border-gray-300 px-4 py-2">1</td>
-                      <td className="border border-gray-300 px-4 py-2">user1@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 08:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 17:00</td>
-                    </tr>
-                    <tr className="bg-gray-100 text-black">
-                      <td className="border border-gray-300 px-4 py-2">2</td>
-                      <td className="border border-gray-300 px-4 py-2">user2@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 09:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 18:00</td>
-                    </tr>
-                    <tr className="bg-white text-black">
-                      <td className="border border-gray-300 px-4 py-2">3</td>
-                      <td className="border border-gray-300 px-4 py-2">user3@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 10:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 19:00</td>
-                    </tr><tr className="bg-white text-black">
-                      <td className="border border-gray-300 px-4 py-2">1</td>
-                      <td className="border border-gray-300 px-4 py-2">user1@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 08:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 17:00</td>
-                    </tr>
-                    <tr className="bg-gray-100 text-black">
-                      <td className="border border-gray-300 px-4 py-2">2</td>
-                      <td className="border border-gray-300 px-4 py-2">user2@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 09:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 18:00</td>
-                    </tr>
-                    <tr className="bg-white text-black">
-                      <td className="border border-gray-300 px-4 py-2">3</td>
-                      <td className="border border-gray-300 px-4 py-2">user3@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 10:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 19:00</td>
-                    </tr><tr className="bg-white text-black">
-                      <td className="border border-gray-300 px-4 py-2">1</td>
-                      <td className="border border-gray-300 px-4 py-2">user1@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 08:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 17:00</td>
-                    </tr>
-                    <tr className="bg-gray-100 text-black">
-                      <td className="border border-gray-300 px-4 py-2">2</td>
-                      <td className="border border-gray-300 px-4 py-2">user2@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 09:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 18:00</td>
-                    </tr>
-                    <tr className="bg-white text-black">
-                      <td className="border border-gray-300 px-4 py-2">3</td>
-                      <td className="border border-gray-300 px-4 py-2">user3@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 10:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 19:00</td>
-                    </tr><tr className="bg-white text-black">
-                      <td className="border border-gray-300 px-4 py-2">1</td>
-                      <td className="border border-gray-300 px-4 py-2">user1@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 08:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 17:00</td>
-                    </tr>
-                    <tr className="bg-gray-100 text-black">
-                      <td className="border border-gray-300 px-4 py-2">2</td>
-                      <td className="border border-gray-300 px-4 py-2">user2@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 09:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 18:00</td>
-                    </tr>
-                    <tr className="bg-white text-black">
-                      <td className="border border-gray-300 px-4 py-2">3</td>
-                      <td className="border border-gray-300 px-4 py-2">user3@example.com</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 10:00</td>
-                      <td className="border border-gray-300 px-4 py-2">2023-10-01 19:00</td>
-                    </tr>
-                  </tbody>
-                </table>
+          <div className="w-full h-full flex bg-[#f7f3ee]">
+
+            {/* LEFT USER LIST */}
+            <div className="w-1/3 border-r border-[#c9b8a8] bg-[#fdfcfb] flex flex-col shadow-md">
+
+              <h2 className="text-xl font-semibold p-4 border-b border-[#d8c7b9] text-[#5c452e] bg-[#f7f3ee]">
+                Conversations
+              </h2>
+
+              <div className="flex-1 overflow-y-auto">
+
+                {conversations.map((c) => (
+                  <div
+                    key={c.conversation_id}
+                    onClick={() => openConversation(c.conversation_id, c.user_id)}
+                    className={`px-4 py-3 cursor-pointer border-b border-[#e6ddd3] transition-all duration-150
+                      ${
+                        selectedUser === c.user_id
+                          ? "bg-[#e9dfd5] text-[#4b3a28]"
+                          : "bg-[#fdfcfb] hover:bg-[#f0e7de]"
+                      }`}
+                  >
+                    <div className="font-semibold text-[#4b3a28]">{c.fullname}</div>
+                    <div className="text-sm text-[#7b6a58] truncate">
+                      {c.last_message || "No messages yet"}
+                    </div>
+                  </div>
+                ))}
+
               </div>
+            </div>
+
+            {/* RIGHT CHAT AREA */}
+            <div className="w-2/3 flex flex-col bg-[#f7f3ee]">
+
+              {/* Header */}
+              <div className="p-4 border-b border-[#d8c7b9] bg-[#fdfcfb] text-lg font-semibold text-[#5c452e] shadow-sm">
+                {selectedUser
+                  ? `Chat with ${
+                      conversations.find(c => c.user_id === selectedUser)?.fullname
+                    }`
+                  : "Select a user"}
+              </div>
+
+              {/* Messages */}
+              <div
+                id="chat-messages"
+                className="flex-1 overflow-y-auto p-4 space-y-3"
+              >
+                {selectedUser ? (
+                  chatMessages.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex ${
+                        msg.sender === "admin" ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                      <div
+                        className={`p-3 rounded-xl max-w-xs shadow-md ${
+                          msg.sender === "admin"
+                            ? "bg-[#7b5e36] text-white"
+                            : "bg-white text-[#4b3a28] border border-[#e0d5c8]"
+                        }`}
+                      >
+                        {msg.text}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-[#9c8b7a] text-center mt-20">
+                    Select a user to start chatting
+                  </div>
+                )}
+              </div>
+
+              {/* Input */}
+              {selectedUser && (
+                <div className="p-4 border-t border-[#d8c7b9] bg-[#fdfcfb] flex items-center gap-3 shadow-inner">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && sendAdminMessage()}
+                    className="flex-1 border border-[#c9b8a8] rounded-lg px-4 py-2 bg-white text-[#4b3a28] placeholder-[#a18d7d] focus:outline-none focus:ring-2 focus:ring-[#b2947b]"
+                    placeholder="Type your message…"
+                  />
+                  <button
+                    onClick={sendAdminMessage}
+                    className="px-4 py-2 bg-[#7b5e36] text-white rounded-lg shadow-md hover:bg-[#6a4f2d] transition-all duration-150"
+                  >
+                    Send
+                  </button>
+                </div>
+              )}
+
             </div>
           </div>
         );
@@ -3889,9 +3945,9 @@ export default function AdminDashboard() {
           </li>
           <li
             className={`flex items-center cursor-pointer rounded mx-2 ${
-              activePage === 'Activity Log' ? 'bg-brown-6 text-white' : 'hover:bg-brown-6 hover:text-white'
+              activePage === 'Chats' ? 'bg-brown-6 text-white' : 'hover:bg-brown-6 hover:text-white'
             } ${isSidebarOpen ? 'p-4' : 'p-3'}`}
-            onClick={() => handleSidebarClick('Activity Log')}
+            onClick={() => handleSidebarClick('Chats')}
           >
             <div
               className={`flex items-center ${
@@ -3899,7 +3955,7 @@ export default function AdminDashboard() {
               } w-full`}
             >
               <FaFileAlt size={20} /> {/* Changed icon to FaFileAlt */}
-              {isSidebarOpen && <span className="ml-4 text-left">Log History</span>}
+              {isSidebarOpen && <span className="ml-4 text-left">Chat History</span>}
             </div>
           </li>
           <li
@@ -4048,4 +4104,5 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
 
