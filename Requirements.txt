@@ -17,5 +17,8 @@ aiofiles
 packaging
 networkx
 sendgrid
+httpx
+httpx[http2]
+
 
 
