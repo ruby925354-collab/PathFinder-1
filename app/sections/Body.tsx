@@ -156,6 +156,8 @@ const FloatingChatbot: React.FC = () => {
   } as const satisfies Variants;
 
   const [shake, setShake] = useState(false);
+  const [shakeTopLogo, setShakeTopLogo] = useState(false);
+
 
   // 🔥 NOW WE CAN SAFELY COMPUTE WHICH CONVO TO SHOW
   const messages = activeChat === 'bot' ? botMessages : adminMessages;
@@ -180,7 +182,8 @@ const FloatingChatbot: React.FC = () => {
     setShowMiniBubble(true);
     setShake(true);
     setTimeout(() => setShake(false), 400);
-
+    setShakeTopLogo(true);
+    setTimeout(() => setShakeTopLogo(false), 400);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     hideTimerRef.current = setTimeout(() => {
       setShowMiniBubble(false);
@@ -206,6 +209,8 @@ const FloatingChatbot: React.FC = () => {
         // 🔥 Trigger shake on floating chatbot image
         setShake(true);
         setTimeout(() => setShake(false), 400);
+        setShakeTopLogo(true);
+        setTimeout(() => setShakeTopLogo(false), 400);
         const miniTimer = setTimeout(() => setShowMiniBubble(false), 5000); // hide after 5 sec
         if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
         hideTimerRef.current = miniTimer;
@@ -260,6 +265,8 @@ const FloatingChatbot: React.FC = () => {
           // Trigger shake on floating chatbot image
           setShake(true);
           setTimeout(() => setShake(false), 400);
+          setShakeTopLogo(true);
+          setTimeout(() => setShakeTopLogo(false), 400);
           // auto hide after 5s
           if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
           hideTimerRef.current = setTimeout(
@@ -342,6 +349,8 @@ const FloatingChatbot: React.FC = () => {
           // 🔥 Trigger shake on floating chatbot image
           setShake(true);
           setTimeout(() => setShake(false), 400);
+          setShakeTopLogo(true);
+          setTimeout(() => setShakeTopLogo(false), 400);
           // auto hide after 5 seconds
           if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
           hideTimerRef.current = setTimeout(() => setShowMiniBubble(false), 5000);
@@ -429,13 +438,20 @@ const FloatingChatbot: React.FC = () => {
           className="fixed bottom-16 right-16 z-50 cursor-pointer"
         >
           <motion.img
-            src="/PATHFINDER-logo-edited.png"
-            alt="Chatbot"
-            className="w-24 h-24 object-contain drop-shadow-xl"
-            variants={shakeAnimation}
-            animate={shake ? "shake" : ""}
-            draggable={false}
-          />
+          src="/PATHFINDER-logo-edited.png"
+          alt="Chatbot"
+          className="w-24 h-24 object-contain drop-shadow-xl"
+          variants={shakeAnimation}
+          animate={
+            isOpen
+              ? { scale: 0, opacity: 0, y: -50 }
+              : shake
+              ? "shake"
+              : { scale: 1, opacity: 1, y: 0 }
+          }
+          transition={{ duration: 0.25, ease: "easeInOut" }}
+          draggable={false}
+        />
         </motion.div>
       )}
 
@@ -491,23 +507,35 @@ const FloatingChatbot: React.FC = () => {
 
       {/* 🪟 Chat Window */}
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8, y: 30 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
-         className="fixed bottom-0 right-0 left-0 md:bottom-6 md:right-6 md:left-auto 
-          w-full md:w-[480px] lg:w-[560px] 
-          h-[85vh] md:h-[580px] 
-          bg-white/95 backdrop-blur-md rounded-none md:rounded-3xl shadow-2xl border border-[#E0D4C2] flex flex-col overflow-hidden z-50"
-        >
+        <>
+          {/* 🌟 EXPANDING LOGO ABOVE THE CHATBOX */}
+          <motion.img
+            src="/PATHFINDER-logo-edited.png"
+            alt="Chatbot Logo"
+            initial={{ scale: 0.3, opacity: 0, y: 20 }}
+            animate={shakeTopLogo ? "shake" : { scale: 1, opacity: 1, y: 0 }}
+            variants={shakeAnimation}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="absolute bottom-[580px] right-25 md:bottom-[555px] md:right-[535px] w-32 h-32 z-[60]"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed bottom-0 right-0 left-0 md:bottom-6 md:right-6 md:left-auto 
+            w-full md:w-[480px] lg:w-[560px] 
+            h-[85vh] md:h-[560px] 
+            bg-white/95 backdrop-blur-md rounded-none md:rounded-3xl shadow-2xl border border-[#E0D4C2] flex flex-col overflow-hidden z-50"
+
+          >
+
           {/* Header */}
           <div className="bg-gradient-to-r from-[#6D4C41] to-[#4E342E] text-white p-5 flex justify-between items-center shadow-md">
             <div className="flex items-center gap-3">
-              <img src="/PATHFINDER-logo-edited.png" alt="logo" className="w-10 h-10 object-contain" />
               <div className="flex gap-3">
               <button
                 onClick={() => setActiveChat('bot')}
-                className={`px-3 py-1 rounded-lg text-sm ${
+                className={`px-3 py-1 rounded-lg text-lg ${
                   activeChat === 'bot' ? 'bg-white text-[#4E342E]' : 'text-gray-200'
                 }`}
               >
@@ -516,7 +544,7 @@ const FloatingChatbot: React.FC = () => {
 
               <button
                 onClick={() => setActiveChat('admin')}
-                className={`px-3 py-1 rounded-lg text-sm ${
+                className={`px-3 py-1 rounded-lg text-lg ${
                   activeChat === 'admin' ? 'bg-white text-[#4E342E]' : 'text-gray-200'
                 }`}
               >
@@ -582,35 +610,36 @@ const FloatingChatbot: React.FC = () => {
           </div>
 
          {/* Input */}
-        <div className="p-5 border-t border-gray-200 flex items-center gap-4 bg-white/95 backdrop-blur-sm">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !(activeChat === "bot" ? isSendingBot : isSendingAdmin) && sendMessage()}
-            placeholder="Type your message..."
-            disabled={activeChat === "bot" ? isSendingBot : isSendingAdmin}
-            className={`flex-1 px-5 py-4 text-lg border rounded-full placeholder:text-gray-400 bg-[#FDFBF9]
-              ${(activeChat === "bot" ? isSendingBot : isSendingAdmin)
-                ? "opacity-50 cursor-not-allowed"
-                : "focus:outline-none focus:ring-2 focus:ring-[#6D4C41]"}
-            `}
-          />
+          <div className="p-5 border-t border-gray-200 flex items-center gap-4 bg-white/95 backdrop-blur-sm">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !(activeChat === "bot" ? isSendingBot : isSendingAdmin) && sendMessage()}
+              placeholder="Type your message..."
+              disabled={activeChat === "bot" ? isSendingBot : isSendingAdmin}
+              className={`flex-1 px-5 py-4 text-lg border rounded-full placeholder:text-gray-400 bg-[#FDFBF9]
+                ${(activeChat === "bot" ? isSendingBot : isSendingAdmin)
+                  ? "opacity-50 cursor-not-allowed"
+                  : "focus:outline-none focus:ring-2 focus:ring-[#6D4C41]"}
+              `}
+            />
 
-          <motion.button
-            onClick={!(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? sendMessage : undefined}
-            whileHover={!(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? { scale: 1.05 } : {}}
-            whileTap={!(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? { scale: 0.95 } : {}}
-            disabled={activeChat === "bot" ? isSendingBot : isSendingAdmin}
-            className={`
-              bg-[#6D4C41] text-white p-4 rounded-full shadow-md
-              ${(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? "opacity-50 cursor-not-allowed" : "hover:bg-[#4E342E]"}
-            `}
-          >
+            <motion.button
+              onClick={!(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? sendMessage : undefined}
+              whileHover={!(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? { scale: 1.05 } : {}}
+              whileTap={!(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? { scale: 0.95 } : {}}
+              disabled={activeChat === "bot" ? isSendingBot : isSendingAdmin}
+              className={`
+                bg-[#6D4C41] text-white p-4 rounded-full shadow-md
+                ${(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? "opacity-50 cursor-not-allowed" : "hover:bg-[#4E342E]"}
+              `}
+            >
             <FiSend size={22} />
           </motion.button>
         </div>
         </motion.div>
+      </>
       )}
     </>
   );
