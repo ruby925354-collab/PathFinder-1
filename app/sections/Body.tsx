@@ -150,7 +150,29 @@ const FloatingChatbot: React.FC = () => {
   const setMessages = activeChat === 'bot' ? setBotMessages : setAdminMessages;
   const [adminConversationId, setAdminConversationId] = useState<number | null>(null);
   const lastAdminMsgIdRef = useRef<number>(0);
-
+ 
+  useEffect(() => {
+    if (activeChat !== "bot") return;
+    if (isOpen) return;
+  
+    const last = botMessages[botMessages.length - 1];
+    if (!last) return;
+  
+    // Only trigger for bot replies
+    if (last.sender !== "bot") return;
+  
+    // STOP the typing indicator
+    setIsMiniTyping(false);
+  
+    // Show the bot response
+    setMiniMessage(last.text);
+    setShowMiniBubble(true);
+  
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => {
+      setShowMiniBubble(false);
+    }, 5000);
+  }, [botMessages, isOpen, activeChat]);
 
   useEffect(() => {
     setUserId(localStorage.getItem("user_id"));
@@ -573,5 +595,6 @@ const FloatingChatbot: React.FC = () => {
 
 
 export default Body;
+
 
 
