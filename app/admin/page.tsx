@@ -184,7 +184,6 @@ export default function AdminDashboard() {
   // State and fetching logic
 
   const [loadingPrograms, setLoadingPrograms] = useState(true);
-  const [loadingPrograms, setLoadingPrograms] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [chatConversationId, setChatConversationId] = useState<number | null>(null);
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
@@ -4106,6 +4105,7 @@ useEffect(() => {
     </div>
   );
 }
+
 
 
 
