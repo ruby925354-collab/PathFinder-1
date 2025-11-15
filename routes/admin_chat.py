@@ -110,6 +110,77 @@ def user_send_message(data: UserMessage):
         "reply": "Your message has been sent. An admin will respond soon."
     }
 
+# ------------------------------------------------------
+# ADMIN — Load messages using conversation_id
+# ------------------------------------------------------
+@router.get("/conversation/{conversation_id}")
+def load_conversation(conversation_id: int):
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT id, sender, message, created_at
+            FROM admin_messages
+            WHERE conversation_id = %s
+            ORDER BY created_at ASC
+        """, (conversation_id,))
+        
+        messages = cursor.fetchall()
+
+    return {"messages": messages}
+
+# ------------------------------------------------------
+# ADMIN — Check if new messages arrived (polling)
+# ------------------------------------------------------
+@router.get("/check-new/{conversation_id}/{last_id}")
+def check_new_messages(conversation_id: int, last_id: int):
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+
+            cursor.execute("""
+                SELECT id, sender, message, created_at
+                FROM admin_messages
+                WHERE conversation_id = %s
+                ORDER BY id DESC
+                LIMIT 1
+            """, (conversation_id,))
+
+            msg = cursor.fetchone()
+
+            if not msg:
+                return {"new": False}
+
+            # Compare message IDs
+            if msg["id"] == last_id:
+                return {"new": False}
+
+            return {
+                "new": True,
+                "message": msg
+            }
+
+    except Exception as e:
+        print("check-new error:", e)
+        raise HTTPException(status_code=500, detail="Server error")
+
+
+# ------------------------------------------------------
+#  ADMIN — Reply to user
+# ------------------------------------------------------
+@router.post("/reply")
+def admin_reply(data: AdminReply):
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+
+        # Save admin message
+        cursor.execute("""
+            INSERT INTO admin_messages (conversation_id, sender, message)
+            VALUES (%s, 'admin', %s)
+        """, (data.conversation_id, data.message))
+        conn.commit()
+
+    return {"status": "success", "message": "Reply sent."}
 
 # ------------------------------------------------------
 # USER — Load conversation history
@@ -135,7 +206,7 @@ def get_user_conversation(user_id: int):
         conversation_id = conversation["id"]
 
         cursor.execute("""
-            SELECT sender, message, created_at
+            SELECT id, sender, message, created_at
             FROM admin_messages
             WHERE conversation_id = %s
             ORDER BY created_at ASC
@@ -146,21 +217,3 @@ def get_user_conversation(user_id: int):
         "conversation_id": conversation_id,
         "messages": messages
     }
-
-
-# ------------------------------------------------------
-#  ADMIN — Reply to user
-# ------------------------------------------------------
-@router.post("/reply")
-def admin_reply(data: AdminReply):
-    with get_db_connection() as conn:
-        cursor = conn.cursor(dictionary=True)
-
-        # Save admin message
-        cursor.execute("""
-            INSERT INTO admin_messages (conversation_id, sender, message)
-            VALUES (%s, 'admin', %s)
-        """, (data.conversation_id, data.message))
-        conn.commit()
-
-    return {"status": "success", "message": "Reply sent."}
