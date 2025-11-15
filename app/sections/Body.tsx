@@ -132,6 +132,8 @@ const FloatingChatbot: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
   const userId = localStorage.getItem("user_id")
+  const selectedLLM = localStorage.getItem("selectedLLM") || "minichat";
+
 
   // 🌟 Inject welcome message on mount (user just logged in)
   useEffect(() => {
@@ -177,10 +179,14 @@ const FloatingChatbot: React.FC = () => {
     try {
       setIsLoading(true);
 
-      const response = await axios.post("https://toothy-cephalic-makena.ngrok-free.dev/chat", {
+    const response = await axios.post(
+      "https://toothy-cephalic-makena.ngrok-free.dev/chat",
+      {
         user_id: userId,
         message: userMessage,
-      });
+        // model: selectedLLM,   // ⭐ THIS DECIDES WHICH BACKEND TO USE
+      }
+    );
 
       // ✅ finished waiting, remove queued state
       setIsQueued(false);
@@ -400,4 +406,3 @@ const FloatingChatbot: React.FC = () => {
 
 
 export default Body;
-
