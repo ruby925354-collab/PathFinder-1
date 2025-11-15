@@ -185,32 +185,48 @@ const FloatingChatbot: React.FC = () => {
 
   // 🔄 AUTO-REFRESH ADMIN CHAT WHEN NEW MESSAGE ARRIVES
   useEffect(() => {
-    if (!adminConversationId || activeChat !== "admin") return;
+  if (!adminConversationId) return;
 
-    const interval = setInterval(async () => {
-      try {
-        const lastId = lastAdminMsgIdRef.current;
+  const interval = setInterval(async () => {
+    try {
+      const lastId = lastAdminMsgIdRef.current;
 
-        const res = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/admin-chat/check-new/${adminConversationId}/${lastId}`
+      const res = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/admin-chat/check-new/${adminConversationId}/${lastId}`
+      );
+
+      if (res.data.new === true) {
+        // Reload all admin messages
+        const msgRes = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/admin-chat/conversation/${adminConversationId}`
         );
 
-        if (res.data.new === true) {
-          // Admin sent a new message → reload conversation
-          const msgRes = await axios.get(
-            `${process.env.NEXT_PUBLIC_API_URL}/admin-chat/conversation/${adminConversationId}`
-          );
-
-          const msgs = msgRes.data.messages.map((m: any) => ({
-            id: m.id,
-            sender: m.sender === "admin" ? "bot" : "user",
+        const msgs = msgRes.data.messages.map((m: any) => ({
+          id: m.id,
+          sender: m.sender === "admin" ? "bot" : "user",
           text: m.message,
         }));
 
         setAdminMessages(msgs);
 
-        // update last known ID
+        // update last known id
         lastAdminMsgIdRef.current = msgs[msgs.length - 1].id;
+
+        // 🔥 SHOW MINI-BUBBLE IF CHAT IS CLOSED OR USER NOT IN ADMIN TAB
+        if (!isOpen || activeChat !== "admin") {
+          const latest = msgs[msgs.length - 1];
+
+          setMiniMessage(latest.text);
+          setIsMiniTyping(false);
+          setShowMiniBubble(true);
+
+          // auto hide after 5s
+          if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+          hideTimerRef.current = setTimeout(
+            () => setShowMiniBubble(false),
+            5000
+          );
+        }
       }
     } catch (err) {
       console.log("User polling failed:", err);
@@ -218,7 +234,8 @@ const FloatingChatbot: React.FC = () => {
   }, 1500);
 
   return () => clearInterval(interval);
-}, [adminConversationId, activeChat]);
+}, [adminConversationId, activeChat, isOpen]);
+
 
 
  const loadAdminMessages = async () => {
@@ -548,3 +565,4 @@ const FloatingChatbot: React.FC = () => {
 
 
 export default Body;
+
