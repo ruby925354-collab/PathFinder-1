@@ -13,8 +13,8 @@ import {
   FaGlobe,
 } from "react-icons/fa";
 import {
-  FaBars, FaHome, FaComment, FaCog, FaChevronDown, FaChevronUp, FaUser,
-  FaLaptopCode, FaBriefcase, FaCogs, FaDraftingCompass, FaStar, FaFileAlt, FaSignOutAlt
+  FaBars, FaHome, FaCoffee, FaCog, FaChevronDown, FaChevronUp, FaUser,
+  FaLaptopCode, FaBriefcase, FaCogs, FaDraftingCompass, FaStar, FaComments, FaSignOutAlt
 } from 'react-icons/fa';
 import Image from 'next/image';
 import Logo from '@/public/PATHFINDER-logo-edited.png';
@@ -4041,7 +4041,7 @@ const [loadingPrograms, setLoadingPrograms] = useState(true);
                 isSidebarOpen ? 'justify-start' : 'justify-center'
               } w-full`}
             >
-              <FaFileAlt size={20} /> {/* Changed icon to FaFileAlt */}
+              <FaComments size={20} /> {/* Changed icon to FaFileAlt */}
               {isSidebarOpen && <span className="ml-4 text-left">Chat History</span>}
             </div>
           </li>
@@ -4056,7 +4056,7 @@ const [loadingPrograms, setLoadingPrograms] = useState(true);
                 isSidebarOpen ? 'justify-start' : 'justify-center'
               } w-full`}
             >
-              <FaComment size={20} />
+              <FaCoffee size={20} />
               {isSidebarOpen && <span className="ml-4 text-left">Feedback</span>}
             </div>
           </li>
@@ -4191,6 +4191,7 @@ const [loadingPrograms, setLoadingPrograms] = useState(true);
     </div>
   );
 }
+
 
 
 
