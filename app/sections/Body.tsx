@@ -149,6 +149,8 @@ const FloatingChatbot: React.FC = () => {
   const messages = activeChat === 'bot' ? botMessages : adminMessages;
   const setMessages = activeChat === 'bot' ? setBotMessages : setAdminMessages;
   const [adminConversationId, setAdminConversationId] = useState<number | null>(null);
+  const lastAdminMsgIdRef = useRef<number>(0);
+
 
   useEffect(() => {
     setUserId(localStorage.getItem("user_id"));
@@ -181,7 +183,45 @@ const FloatingChatbot: React.FC = () => {
       }
     }, [activeChat]);
 
-  const loadAdminMessages = async () => {
+  // 🔄 AUTO-REFRESH ADMIN CHAT WHEN NEW MESSAGE ARRIVES
+  useEffect(() => {
+    if (!adminConversationId || activeChat !== "admin") return;
+
+    const interval = setInterval(async () => {
+      try {
+        const lastId = lastAdminMsgIdRef.current;
+
+        const res = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/admin-chat/check-new/${adminConversationId}/${lastId}`
+        );
+
+        if (res.data.new === true) {
+          // Admin sent a new message → reload conversation
+          const msgRes = await axios.get(
+            `${process.env.NEXT_PUBLIC_API_URL}/admin-chat/conversation/${adminConversationId}`
+          );
+
+          const msgs = msgRes.data.messages.map((m: any) => ({
+            id: m.id,
+            sender: m.sender === "admin" ? "bot" : "user",
+          text: m.message,
+        }));
+
+        setAdminMessages(msgs);
+
+        // update last known ID
+        lastAdminMsgIdRef.current = msgs[msgs.length - 1].id;
+      }
+    } catch (err) {
+      console.log("User polling failed:", err);
+    }
+  }, 1500);
+
+  return () => clearInterval(interval);
+}, [adminConversationId, activeChat]);
+
+
+ const loadAdminMessages = async () => {
     setIsAdminLoadingHistory(true);
 
     try {
@@ -189,18 +229,24 @@ const FloatingChatbot: React.FC = () => {
         `${process.env.NEXT_PUBLIC_API_URL}/admin-chat/${userId}`
       );
 
-      setAdminMessages(
-        res.data.messages.map((msg: any) => ({
-          sender: msg.sender === "admin" ? "bot" : "user",
-          text: msg.message
-        }))
-      );
+      const msgs = res.data.messages.map((msg: any) => ({
+        id: msg.id,                 // <-- ADD THIS
+        sender: msg.sender === "admin" ? "bot" : "user",
+        text: msg.message
+      }));
 
+      setAdminMessages(msgs);
       setAdminConversationId(res.data.conversation_id);
+
+      // 💾 Store last admin message id
+      lastAdminMsgIdRef.current =
+        msgs.length > 0 ? msgs[msgs.length - 1].id : 0;
+
     } finally {
       setIsAdminLoadingHistory(false);
     }
   };
+
 
 
   // 🧠 Send message
