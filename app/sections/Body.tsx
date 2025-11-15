@@ -358,6 +358,14 @@ const FloatingChatbot: React.FC = () => {
   messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 }, [activeChat]);
 
+  // ✅ Scroll to newest message whenever chat opens or tab switches
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+      }, 50);
+    }
+  }, [isOpen, activeChat]);
 
   return (
     <>
@@ -565,4 +573,5 @@ const FloatingChatbot: React.FC = () => {
 
 
 export default Body;
+
 
