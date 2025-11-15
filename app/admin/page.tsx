@@ -42,7 +42,8 @@ interface UserItem {
 }
 
 interface ChatMessage {
-  sender: "admin" | "user";
+  id: number;
+  sender: string;
   text: string;
 }
 export default function AdminDashboard() {
@@ -183,27 +184,31 @@ export default function AdminDashboard() {
   const [loadingTopPrograms, setLoadingTopPrograms] = useState(true);
   // State and fetching logic
 
-  const [loadingPrograms, setLoadingPrograms] = useState(true);
+const [loadingPrograms, setLoadingPrograms] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [chatConversationId, setChatConversationId] = useState<number | null>(null);
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [conversations, setConversations] = useState<
-  {
-    conversation_id: number;
-    user_id: number;
-    fullname: string;
-    last_message: string;
-    last_sender: string;
-  }[]
->([]);
-  
-useEffect(() => {
-  const chatContainer = document.getElementById("chat-messages");
-  if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
-}, [chatMessages]);
+    {
+      conversation_id: number;
+      user_id: number;
+      fullname: string;
+      last_message: string;
+      last_sender: string;
+    }[]
+  >([]);
+  const [isSending, setIsSending] = useState(false);
+  const lastMessageIdRef = useRef<number>(0);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
+  // AUTO SCROLL
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  // LOAD CONVERSATION LIST ONCE
   useEffect(() => {
     const fetchConversations = async () => {
       try {
@@ -216,6 +221,44 @@ useEffect(() => {
 
     fetchConversations();
   }, []);
+
+
+  useEffect(() => {
+    if (!chatConversationId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const lastId = lastMessageIdRef.current;
+
+        const res = await axios.get(
+          `${API_BASE_URL}/admin-chat/check-new/${chatConversationId}/${lastId}`
+        );
+
+        if (res.data.new === true) {
+          const msgRes = await axios.get(
+            `${API_BASE_URL}/admin-chat/conversation/${chatConversationId}`
+          );
+
+          const messages = msgRes.data.messages.map((m: any) => ({
+            id: m.id,
+            sender: m.sender,
+            text: m.message,
+            created_at: m.created_at,
+          }));
+
+          setChatMessages(messages);
+
+          // Update persistent last ID
+          lastMessageIdRef.current =
+            messages.length > 0 ? messages[messages.length - 1].id : 0;
+        }
+      } catch (err) {
+        console.error("Polling failed:", err);
+      }
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [chatConversationId]);
  
   useEffect(() => {
     const fetchTopPrograms = async () => {
@@ -262,32 +305,58 @@ useEffect(() => {
     fetchUserTimeline();
   }, []);
   
+  // OPEN A CONVERSATION
   const openConversation = async (conversationId: number, userId: number) => {
     setSelectedUser(userId);
     setChatConversationId(conversationId);
 
-    const res = await axios.get(`${API_BASE_URL}/admin-chat/${userId}`);
-
-    setChatMessages(
-      res.data.messages.map((m: any) => ({
-        sender: m.sender,
-        text: m.message,
-      }))
+    const res = await axios.get(
+      `${API_BASE_URL}/admin-chat/conversation/${conversationId}`
     );
+
+    const msgs = res.data.messages.map((m: any) => ({
+      id: m.id,
+      sender: m.sender,
+      text: m.message,
+      created_at: m.created_at,
+    }));
+
+    setChatMessages(msgs);
+
+    // Update last ID
+    lastMessageIdRef.current =
+      msgs.length > 0 ? msgs[msgs.length - 1].id : 0;
   };
 
   const sendAdminMessage = async () => {
     if (!chatInput.trim() || !chatConversationId) return;
+
     const message = chatInput;
     setChatInput("");
-    // Show admin message instantly
-    setChatMessages((prev) => [...prev, { sender: "admin", text: message }]);
+
+    // Temporary ID (increment last ID)
+    const tempId = Date.now();
+    // Show UI message instantly
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        sender: "admin",
+        text: message,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+
+    lastMessageIdRef.current = tempId;
+
+    setIsSending(true);
 
     await axios.post(`${API_BASE_URL}/admin-chat/reply`, {
       conversation_id: chatConversationId,
       message,
     });
 
+    setIsSending(false);
   };
 
   const totalUsersData = {
@@ -3777,74 +3846,90 @@ useEffect(() => {
         );
      case "Chats":
         return (
-          <div className="w-full h-full flex bg-[#f7f3ee]">
+          <div className="w-full h-full flex bg-[#f6f0e9]">
 
             {/* LEFT USER LIST */}
-            <div className="w-1/3 border-r border-[#c9b8a8] bg-[#fdfcfb] flex flex-col shadow-md">
+            <div className="w-1/3 border-r border-[#c9b8a8] bg-[#fcfaf8] flex flex-col shadow-md">
 
-              <h2 className="text-xl font-semibold p-4 border-b border-[#d8c7b9] text-[#5c452e] bg-[#f7f3ee]">
+              <h2 className="text-xl font-semibold p-4 border-b border-[#d8c7b9] text-[#5c452e] bg-[#f6f0e9]">
                 Conversations
               </h2>
 
-              <div className="flex-1 overflow-y-auto">
-
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {conversations.map((c) => (
                   <div
                     key={c.conversation_id}
                     onClick={() => openConversation(c.conversation_id, c.user_id)}
-                    className={`px-4 py-3 cursor-pointer border-b border-[#e6ddd3] transition-all duration-150
+                    className={`
+                      px-4 py-3 cursor-pointer border-b border-[#e6ddd3]
+                      transition-all duration-200 rounded-sm
                       ${
                         selectedUser === c.user_id
-                          ? "bg-[#e9dfd5] text-[#4b3a28]"
-                          : "bg-[#fdfcfb] hover:bg-[#f0e7de]"
-                      }`}
+                          ? "bg-[#e9dfd5] text-[#4b3a28] shadow-inner"
+                          : "bg-[#fcfaf8] hover:bg-[#f3ebe3]"
+                      }
+                    `}
                   >
-                    <div className="font-semibold text-[#4b3a28]">{c.fullname}</div>
+                    <div className="font-semibold text-[#4b3a28]">
+                      {c.fullname}
+                    </div>
                     <div className="text-sm text-[#7b6a58] truncate">
                       {c.last_message || "No messages yet"}
                     </div>
                   </div>
                 ))}
-
               </div>
             </div>
 
             {/* RIGHT CHAT AREA */}
-            <div className="w-2/3 flex flex-col bg-[#f7f3ee]">
+            <div className="flex-1 flex flex-col bg-[#f6f0e9] min-h-0">
 
-              {/* Header */}
-              <div className="p-4 border-b border-[#d8c7b9] bg-[#fdfcfb] text-lg font-semibold text-[#5c452e] shadow-sm">
+              {/* HEADER */}
+              <div className="p-4 border-b border-[#d8c7b9] bg-[#fcfaf8] text-lg font-semibold text-[#5c452e] shadow-sm">
                 {selectedUser
                   ? `Chat with ${
-                      conversations.find(c => c.user_id === selectedUser)?.fullname
+                      conversations.find((c) => c.user_id === selectedUser)?.fullname
                     }`
                   : "Select a user"}
               </div>
 
-              {/* Messages */}
+              {/* MESSAGES SCROLL AREA */}
               <div
-                id="chat-messages"
-                className="flex-1 overflow-y-auto p-4 space-y-3"
+                className="overflow-y-auto p-4 space-y-4 custom-scrollbar"
+                style={{ height: "calc(100vh - 300px)" }}  // your working height formula
               >
                 {selectedUser ? (
-                  chatMessages.map((msg, idx) => (
-                    <div
-                      key={idx}
-                      className={`flex ${
-                        msg.sender === "admin" ? "justify-end" : "justify-start"
-                      }`}
-                    >
+                  <>
+                    {chatMessages.map((msg, idx) => (
                       <div
-                        className={`p-3 rounded-xl max-w-xs shadow-md ${
-                          msg.sender === "admin"
-                            ? "bg-[#7b5e36] text-white"
-                            : "bg-white text-[#4b3a28] border border-[#e0d5c8]"
+                        key={idx}
+                        className={`flex ${
+                          msg.sender === "admin" ? "justify-end" : "justify-start"
                         }`}
                       >
-                        {msg.text}
+                        <div
+                          className={`
+                            px-4 py-3 rounded-xl max-w-xs shadow-md text-sm leading-relaxed
+                            ${
+                              msg.sender === "admin"
+                                ? "bg-gradient-to-br from-[#7b5e36] to-[#60472c] text-white rounded-br-none"
+                                : "bg-white text-[#4b3a28] border border-[#e0d5c8] rounded-bl-none"
+                            }
+                          `}
+                        >
+                          {msg.text}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+
+                    {isSending && (
+                      <div className="flex justify-end pr-3">
+                        <div className="text-xs italic text-[#7b6a58]">Sending…</div>
+                      </div>
+                    )}
+
+                    <div ref={messagesEndRef} />
+                  </>
                 ) : (
                   <div className="text-[#9c8b7a] text-center mt-20">
                     Select a user to start chatting
@@ -3852,26 +3937,27 @@ useEffect(() => {
                 )}
               </div>
 
-              {/* Input */}
+              {/* INPUT BAR */}
               {selectedUser && (
-                <div className="p-4 border-t border-[#d8c7b9] bg-[#fdfcfb] flex items-center gap-3 shadow-inner">
+                <div className="p-4 border-t border-[#d8c7b9] bg-[#fcfaf8] flex items-center gap-3 shadow-inner">
                   <input
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && sendAdminMessage()}
-                    className="flex-1 border border-[#c9b8a8] rounded-lg px-4 py-2 bg-white text-[#4b3a28] placeholder-[#a18d7d] focus:outline-none focus:ring-2 focus:ring-[#b2947b]"
+                    className="flex-1 border border-[#c9b8a8] rounded-lg px-4 py-2 bg-white text-[#4b3a28]
+                                placeholder-[#a18d7d] focus:outline-none focus:ring-2 focus:ring-[#b2947b]"
                     placeholder="Type your message…"
                   />
                   <button
                     onClick={sendAdminMessage}
-                    className="px-4 py-2 bg-[#7b5e36] text-white rounded-lg shadow-md hover:bg-[#6a4f2d] transition-all duration-150"
+                    className="px-5 py-2 bg-[#7b5e36] text-white rounded-lg shadow-md
+                                hover:bg-[#6a4f2d] active:scale-95 transition-all"
                   >
                     Send
                   </button>
                 </div>
               )}
-
             </div>
           </div>
         );
@@ -4105,6 +4191,7 @@ useEffect(() => {
     </div>
   );
 }
+
 
 
 
