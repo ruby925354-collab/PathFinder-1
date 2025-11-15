@@ -217,33 +217,7 @@ useEffect(() => {
 
     fetchConversations();
   }, []);
-  const openConversation = async (conversationId: number, userId: number) => {
-    setSelectedUser(userId);
-    setChatConversationId(conversationId);
-
-    const res = await axios.get(`${API_BASE_URL}/admin-chat/${userId}`);
-
-    setChatMessages(
-      res.data.messages.map((m: any) => ({
-        sender: m.sender,
-        text: m.message,
-      }))
-    );
-  };
-
-  const sendAdminMessage = async () => {
-    if (!chatInput.trim() || !chatConversationId) return;
-    const message = chatInput;
-    setChatInput("");
-    // Show admin message instantly
-    setChatMessages((prev) => [...prev, { sender: "admin", text: message }]);
-
-    await axios.post(`${API_BASE_URL}/admin-chat/reply`, {
-      conversation_id: chatConversationId,
-      message,
-    });
-
-  };
+ 
   useEffect(() => {
     const fetchTopPrograms = async () => {
       try {
@@ -288,6 +262,34 @@ useEffect(() => {
     };
     fetchUserTimeline();
   }, []);
+  
+  const openConversation = async (conversationId: number, userId: number) => {
+    setSelectedUser(userId);
+    setChatConversationId(conversationId);
+
+    const res = await axios.get(`${API_BASE_URL}/admin-chat/${userId}`);
+
+    setChatMessages(
+      res.data.messages.map((m: any) => ({
+        sender: m.sender,
+        text: m.message,
+      }))
+    );
+  };
+
+  const sendAdminMessage = async () => {
+    if (!chatInput.trim() || !chatConversationId) return;
+    const message = chatInput;
+    setChatInput("");
+    // Show admin message instantly
+    setChatMessages((prev) => [...prev, { sender: "admin", text: message }]);
+
+    await axios.post(`${API_BASE_URL}/admin-chat/reply`, {
+      conversation_id: chatConversationId,
+      message,
+    });
+
+  };
 
   const totalUsersData = {
     labels: userTimeline.map((d) => d.date),
@@ -4104,5 +4106,6 @@ useEffect(() => {
     </div>
   );
 }
+
 
 
