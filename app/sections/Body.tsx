@@ -427,7 +427,7 @@ const FloatingChatbot: React.FC = () => {
           transition={{ duration: 0.25 }}
          className="fixed bottom-0 right-0 left-0 md:bottom-6 md:right-6 md:left-auto 
           w-full md:w-[480px] lg:w-[560px] 
-          h-[85vh] md:h-[650px] 
+          h-[85vh] md:h-[580px] 
           bg-white/95 backdrop-blur-md rounded-none md:rounded-3xl shadow-2xl border border-[#E0D4C2] flex flex-col overflow-hidden z-50"
         >
           {/* Header */}
