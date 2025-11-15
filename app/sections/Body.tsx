@@ -123,16 +123,36 @@ const Body = () => {
 const FloatingChatbot: React.FC = () => {
   const [isQueued, setIsQueued] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<{ sender: 'user' | 'bot'; text: string }[]>([]);
   const [input, setInput] = useState('');
   const [miniMessage, setMiniMessage] = useState<string | null>(null);
   const [showMiniBubble, setShowMiniBubble] = useState(false);
   const [isMiniTyping, setIsMiniTyping] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  // const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const userId = localStorage.getItem("user_id")
+  const hideTimerRef = useRef<NodeJS.Timeout | null>(null);// Loading the history from db (Admin tab)
+  const [isAdminLoadingHistory, setIsAdminLoadingHistory] = useState(false);
+
+  // Sending messages
+  const [isSendingBot, setIsSendingBot] = useState(false);
+  const [isSendingAdmin, setIsSendingAdmin] = useState(false);
+
+
+  const [userId, setUserId] = useState<string | null>(null);
   const selectedLLM = localStorage.getItem("selectedLLM") || "minichat";
+
+  // 🔥 MUST BE DEFINED BEFORE USING messages/setMessages
+  const [activeChat, setActiveChat] = useState<'bot' | 'admin'>('bot');
+  const [botMessages, setBotMessages] = useState<{ sender: 'user' | 'bot'; text: string }[]>([]);
+  const [adminMessages, setAdminMessages] = useState<{ sender: 'user' | 'bot'; text: string }[]>([]);
+
+  // 🔥 NOW WE CAN SAFELY COMPUTE WHICH CONVO TO SHOW
+  const messages = activeChat === 'bot' ? botMessages : adminMessages;
+  const setMessages = activeChat === 'bot' ? setBotMessages : setAdminMessages;
+  const [adminConversationId, setAdminConversationId] = useState<number | null>(null);
+
+  useEffect(() => {
+    setUserId(localStorage.getItem("user_id"));
+  }, []);
 
 
   // 🌟 Inject welcome message on mount (user just logged in)
@@ -155,64 +175,96 @@ const FloatingChatbot: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // 🧠 Send message
-  const sendMessage = async () => {
-    if (isLoading || isQueued) return;   // ✅ prevent sending again
-    if (!input.trim()) return;
+    useEffect(() => {
+      if (activeChat === "admin") {
+        loadAdminMessages();
+      }
+    }, [activeChat]);
 
-    const userMessage = input.trim();
-    setInput('');
-    setMessages((prev) => [...prev, { sender: 'user', text: userMessage }]);
-
-    // ✅ queued state
-    setIsQueued(true);
-
-  if (!isOpen) {
-    if (isQueued) {
-      setMiniMessage("Sending...");
-    } else {
-      setMiniMessage(userMessage);
-    }
-    setShowMiniBubble(true);
-  }
+  const loadAdminMessages = async () => {
+    setIsAdminLoadingHistory(true);
 
     try {
-      setIsLoading(true);
+      const res = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/admin-chat/${userId}`
+      );
 
-    const response = await axios.post(
-      "https://toothy-cephalic-makena.ngrok-free.dev/chat",
-      {
-        user_id: userId,
-        message: userMessage,
-        // model: selectedLLM,   // ⭐ THIS DECIDES WHICH BACKEND TO USE
-      }
-    );
+      setAdminMessages(
+        res.data.messages.map((msg: any) => ({
+          sender: msg.sender === "admin" ? "bot" : "user",
+          text: msg.message
+        }))
+      );
 
-      // ✅ finished waiting, remove queued state
-      setIsQueued(false);
-
-      const botMessage = response.data.reply || "...";
-      setMessages((prev) => [...prev, { sender: "bot", text: botMessage }]);
-
-      if (!isOpen) {
-        setMiniMessage(botMessage);
-        setIsMiniTyping(false);
-        setShowMiniBubble(true);
-
-        const timerId = setTimeout(() => setShowMiniBubble(false), 6000);
-        if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-        hideTimerRef.current = timerId;
-      }
-    } catch (err) {
-      setIsQueued(false);
-      setMessages((prev) => [
-        ...prev,
-        { sender: "bot", text: "⚠️ Server unavailable. Try later." },
-      ]);
+      setAdminConversationId(res.data.conversation_id);
     } finally {
-      setIsLoading(false);
+      setIsAdminLoadingHistory(false);
     }
   };
+
+
+  // 🧠 Send message
+  const sendMessage = async () => {
+    // normalize input
+    if (!input.trim()) return;
+    const userMessage = input.trim();
+
+    // Prevent duplicate sends for the active chat
+    if (activeChat === "bot" && isSendingBot) return;
+    if (activeChat === "admin" && isSendingAdmin) return;
+
+    // Add user message to UI and clear input immediately
+    setMessages(prev => [...prev, { sender: 'user', text: userMessage }]);
+    setInput('');
+
+    // Set appropriate sending flag
+    if (activeChat === "bot") setIsSendingBot(true);
+    else setIsSendingAdmin(true);
+
+    try {
+      let botMessage = "";
+
+      if (activeChat === "bot") {
+        // Replace with your bot endpoint
+        const response = await axios.post(
+          "https://toothy-cephalic-makena.ngrok-free.dev/chat",
+          { user_id: userId, message: userMessage }
+        );
+        botMessage = response.data.reply || "...";
+      } else {
+        // Admin endpoint - this expects conversation_id OR will create one
+        const response = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/admin-chat/`,
+          {
+            user_id: userId,
+            conversation_id: adminConversationId ?? undefined,
+            message: userMessage,
+          }
+        );
+
+        // Save returned conversation id if present
+        if (response.data.conversation_id) {
+          setAdminConversationId(response.data.conversation_id);
+        }
+
+        botMessage = response.data.reply || "Message sent to admin.";
+      }
+
+      // Append reply to UI
+      setMessages(prev => [...prev, { sender: 'bot', text: botMessage }]);
+    } catch (err) {
+      // append error message
+      setMessages(prev => [
+        ...prev,
+        { sender: 'bot', text: "⚠️ Server unavailable. Try later." }
+      ]);
+    } finally {
+      // clear sending flag for the active chat
+      if (activeChat === "bot") setIsSendingBot(false);
+      else setIsSendingAdmin(false);
+    }
+  };
+
 
 
   useEffect(() => {
@@ -221,7 +273,11 @@ const FloatingChatbot: React.FC = () => {
 
   const handleCloseChat = () => {
     setIsOpen(false);
-    if (isLoading) {
+
+    // Show typing mini bubble only if the CURRENT CHAT is sending
+    const isSending = activeChat === "bot" ? isSendingBot : isSendingAdmin;
+
+    if (isSending) {
       setMiniMessage('...');
       setIsMiniTyping(true);
       setShowMiniBubble(true);
@@ -233,6 +289,12 @@ const FloatingChatbot: React.FC = () => {
     setShowMiniBubble(false);
     setIsMiniTyping(false);
   };
+
+  useEffect(() => {
+  // restore correct convo on tab switch
+  messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+}, [activeChat]);
+
 
   return (
     <>
@@ -317,13 +379,34 @@ const FloatingChatbot: React.FC = () => {
           initial={{ opacity: 0, scale: 0.8, y: 30 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.25 }}
-          className="fixed bottom-6 right-6 w-[480px] md:w-[560px] h-[650px] bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border border-[#E0D4C2] flex flex-col overflow-hidden z-50"
+         className="fixed bottom-0 right-0 left-0 md:bottom-6 md:right-6 md:left-auto 
+          w-full md:w-[480px] lg:w-[560px] 
+          h-[85vh] md:h-[650px] 
+          bg-white/95 backdrop-blur-md rounded-none md:rounded-3xl shadow-2xl border border-[#E0D4C2] flex flex-col overflow-hidden z-50"
         >
           {/* Header */}
           <div className="bg-gradient-to-r from-[#6D4C41] to-[#4E342E] text-white p-5 flex justify-between items-center shadow-md">
             <div className="flex items-center gap-3">
               <img src="/PATHFINDER-logo-edited.png" alt="logo" className="w-10 h-10 object-contain" />
-              <span className="font-semibold text-xl tracking-wide">Chat Assistant</span>
+              <div className="flex gap-3">
+              <button
+                onClick={() => setActiveChat('bot')}
+                className={`px-3 py-1 rounded-lg text-sm ${
+                  activeChat === 'bot' ? 'bg-white text-[#4E342E]' : 'text-gray-200'
+                }`}
+              >
+                Chatbot
+              </button>
+
+              <button
+                onClick={() => setActiveChat('admin')}
+                className={`px-3 py-1 rounded-lg text-sm ${
+                  activeChat === 'admin' ? 'bg-white text-[#4E342E]' : 'text-gray-200'
+                }`}
+              >
+                Admin
+              </button>
+            </div>
             </div>
             <button onClick={handleCloseChat} className="hover:text-gray-300 transition-colors">
               <FiX size={26} />
@@ -332,72 +415,85 @@ const FloatingChatbot: React.FC = () => {
 
           {/* Chat Body */}
           <div className="flex-1 p-6 overflow-y-auto bg-[#FAF8F5]/90 scrollbar-thin scrollbar-thumb-[#C7B8A1] scrollbar-track-transparent space-y-5">
-            {messages.length === 0 && (
-              <div className="text-center text-gray-500 text-base italic py-8">
-                👋 Hi there! How can I help you today?
+
+            {/* Admin history loading */}
+            {activeChat === "admin" && isAdminLoadingHistory && (
+              <div className="text-center text-gray-500 py-8 text-lg">
+                Fetching conversation…
+                <div className="flex justify-center mt-3 space-x-1">
+                  <div className="animate-bounce">•</div>
+                  <div className="animate-bounce delay-100">•</div>
+                  <div className="animate-bounce delay-200">•</div>
+                </div>
               </div>
             )}
 
-            {messages.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className={`px-5 py-4 rounded-2xl max-w-[80%] text-lg leading-relaxed shadow ${
-                    msg.sender === 'user'
-                      ? 'bg-gradient-to-r from-[#6D4C41] to-[#4E342E] text-white rounded-br-none'
-                      : 'bg-[#EFE6DD] text-[#3E2723] rounded-bl-none'
-                  }`}
-                >
-                  {msg.text}
-                </motion.div>
-              </div>
-            ))}
+            {!(activeChat === "admin" && isAdminLoadingHistory) && (
+              <>
+                {messages.map((msg, idx) => (
+                  <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className={`px-5 py-4 rounded-2xl max-w-[80%] text-lg leading-relaxed shadow ${
+                        msg.sender === 'user'
+                          ? 'bg-gradient-to-r from-[#6D4C41] to-[#4E342E] text-white rounded-br-none'
+                          : 'bg-[#EFE6DD] text-[#3E2723] rounded-bl-none'
+                      }`}
+                    >
+                      {msg.text}
+                    </motion.div>
+                  </div>
+                ))}
+              </>
+            )}
 
-            {isLoading && (
-              <div className="flex items-center space-x-2 text-gray-500 text-lg ml-2">
-                <div className="animate-bounce">•</div>
-                <div className="animate-bounce delay-100">•</div>
-                <div className="animate-bounce delay-200">•</div>
+            {/* SENDING… indicator shown BELOW user's message */}
+            {activeChat === "bot" && isSendingBot && (
+              <div className="text-right text-gray-500 text-sm italic pr-3">
+                Sending…
               </div>
             )}
-            {isQueued && !isLoading && (
-              <div className="flex items-center space-x-2 text-gray-400 text-lg ml-2 italic">
-                Sending...
+
+            {activeChat === "admin" && isSendingAdmin && (
+              <div className="text-right text-gray-500 text-sm italic pr-3">
+                Sending to admin…
               </div>
             )}
 
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
-          <div className="p-5 border-t border-gray-200 flex items-center gap-4 bg-white/95 backdrop-blur-sm">
-            <input
+         {/* Input */}
+        <div className="p-5 border-t border-gray-200 flex items-center gap-4 bg-white/95 backdrop-blur-sm">
+          <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage()}
+            onKeyDown={(e) => e.key === 'Enter' && !(activeChat === "bot" ? isSendingBot : isSendingAdmin) && sendMessage()}
             placeholder="Type your message..."
-            disabled={isLoading}
+            disabled={activeChat === "bot" ? isSendingBot : isSendingAdmin}
             className={`flex-1 px-5 py-4 text-lg border rounded-full placeholder:text-gray-400 bg-[#FDFBF9]
-              ${isLoading ? "opacity-50 cursor-not-allowed" : "focus:outline-none focus:ring-2 focus:ring-[#6D4C41]"}
+              ${(activeChat === "bot" ? isSendingBot : isSendingAdmin)
+                ? "opacity-50 cursor-not-allowed"
+                : "focus:outline-none focus:ring-2 focus:ring-[#6D4C41]"}
             `}
           />
 
           <motion.button
-            onClick={!isLoading ? sendMessage : undefined}
-            whileHover={!isLoading ? { scale: 1.1 } : {}}
-            whileTap={!isLoading ? { scale: 0.95 } : {}}
-            disabled={isLoading}
+            onClick={!(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? sendMessage : undefined}
+            whileHover={!(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? { scale: 1.05 } : {}}
+            whileTap={!(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? { scale: 0.95 } : {}}
+            disabled={activeChat === "bot" ? isSendingBot : isSendingAdmin}
             className={`
               bg-[#6D4C41] text-white p-4 rounded-full shadow-md
-              ${isLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-[#4E342E]"}
+              ${(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? "opacity-50 cursor-not-allowed" : "hover:bg-[#4E342E]"}
             `}
           >
             <FiSend size={22} />
           </motion.button>
-          </div>
+        </div>
         </motion.div>
       )}
     </>
