@@ -156,8 +156,6 @@ const FloatingChatbot: React.FC = () => {
   } as const satisfies Variants;
 
   const [shake, setShake] = useState(false);
-  const [shakeTopLogo, setShakeTopLogo] = useState(false);
-
 
   // 🔥 NOW WE CAN SAFELY COMPUTE WHICH CONVO TO SHOW
   const messages = activeChat === 'bot' ? botMessages : adminMessages;
@@ -182,8 +180,7 @@ const FloatingChatbot: React.FC = () => {
     setShowMiniBubble(true);
     setShake(true);
     setTimeout(() => setShake(false), 400);
-    setShakeTopLogo(true);
-    setTimeout(() => setShakeTopLogo(false), 400);
+
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     hideTimerRef.current = setTimeout(() => {
       setShowMiniBubble(false);
@@ -209,8 +206,6 @@ const FloatingChatbot: React.FC = () => {
         // 🔥 Trigger shake on floating chatbot image
         setShake(true);
         setTimeout(() => setShake(false), 400);
-        setShakeTopLogo(true);
-        setTimeout(() => setShakeTopLogo(false), 400);
         const miniTimer = setTimeout(() => setShowMiniBubble(false), 5000); // hide after 5 sec
         if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
         hideTimerRef.current = miniTimer;
@@ -265,8 +260,6 @@ const FloatingChatbot: React.FC = () => {
           // Trigger shake on floating chatbot image
           setShake(true);
           setTimeout(() => setShake(false), 400);
-          setShakeTopLogo(true);
-          setTimeout(() => setShakeTopLogo(false), 400);
           // auto hide after 5s
           if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
           hideTimerRef.current = setTimeout(
@@ -349,8 +342,6 @@ const FloatingChatbot: React.FC = () => {
           // 🔥 Trigger shake on floating chatbot image
           setShake(true);
           setTimeout(() => setShake(false), 400);
-          setShakeTopLogo(true);
-          setTimeout(() => setShakeTopLogo(false), 400);
           // auto hide after 5 seconds
           if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
           hideTimerRef.current = setTimeout(() => setShowMiniBubble(false), 5000);
@@ -438,20 +429,13 @@ const FloatingChatbot: React.FC = () => {
           className="fixed bottom-16 right-16 z-50 cursor-pointer"
         >
           <motion.img
-          src="/PATHFINDER-logo-edited.png"
-          alt="Chatbot"
-          className="w-24 h-24 object-contain drop-shadow-xl"
-          variants={shakeAnimation}
-          animate={
-            isOpen
-              ? { scale: 0, opacity: 0, y: -50 }
-              : shake
-              ? "shake"
-              : { scale: 1, opacity: 1, y: 0 }
-          }
-          transition={{ duration: 0.25, ease: "easeInOut" }}
-          draggable={false}
-        />
+            src="/PATHFINDER-logo-edited.png"
+            alt="Chatbot"
+            className="w-24 h-24 object-contain drop-shadow-xl"
+            variants={shakeAnimation}
+            animate={shake ? "shake" : ""}
+            draggable={false}
+          />
         </motion.div>
       )}
 
@@ -508,23 +492,24 @@ const FloatingChatbot: React.FC = () => {
       {/* 🪟 Chat Window */}
       {isOpen && (
         <>
+
           {/* 🌟 EXPANDING LOGO ABOVE THE CHATBOX */}
           <motion.img
             src="/PATHFINDER-logo-edited.png"
             alt="Chatbot Logo"
             initial={{ scale: 0.3, opacity: 0, y: 20 }}
-            animate={shakeTopLogo ? "shake" : { scale: 1, opacity: 1, y: 0 }}
-            variants={shakeAnimation}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
             transition={{ duration: 0.3, ease: "easeOut" }}
-            className="absolute bottom-[580px] right-25 md:bottom-[555px] md:right-[535px] w-32 h-32 z-[60]"
+            className="absolute bottom-[580px] right-25 md:bottom-[570px] md:right-[540px] w-24 h-24 z-[60]"
           />
+
           <motion.div
             initial={{ opacity: 0, scale: 0.8, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.25 }}
-            className="fixed bottom-0 right-0 left-0 md:bottom-6 md:right-6 md:left-auto 
+           className="fixed bottom-0 right-0 left-0 md:bottom-6 md:right-6 md:left-auto 
             w-full md:w-[480px] lg:w-[560px] 
-            h-[85vh] md:h-[560px] 
+            h-[85vh] md:h-[580px] 
             bg-white/95 backdrop-blur-md rounded-none md:rounded-3xl shadow-2xl border border-[#E0D4C2] flex flex-col overflow-hidden z-50"
 
           >
@@ -535,7 +520,7 @@ const FloatingChatbot: React.FC = () => {
               <div className="flex gap-3">
               <button
                 onClick={() => setActiveChat('bot')}
-                className={`px-3 py-1 rounded-lg text-lg ${
+                className={`px-3 py-2 rounded-lg text-xl ${
                   activeChat === 'bot' ? 'bg-white text-[#4E342E]' : 'text-gray-200'
                 }`}
               >
@@ -544,7 +529,7 @@ const FloatingChatbot: React.FC = () => {
 
               <button
                 onClick={() => setActiveChat('admin')}
-                className={`px-3 py-1 rounded-lg text-lg ${
+                className={`px-3 py-2 rounded-lg text-xl ${
                   activeChat === 'admin' ? 'bg-white text-[#4E342E]' : 'text-gray-200'
                 }`}
               >
