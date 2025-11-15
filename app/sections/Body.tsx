@@ -8,6 +8,7 @@ import OTPModal from '@/app/components/OTPModal';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { FiSend, FiMessageCircle, FiX } from 'react-icons/fi';
+import { Variants } from "framer-motion";
 import axios from 'axios';
 
 const Body = () => {
@@ -144,6 +145,17 @@ const FloatingChatbot: React.FC = () => {
   const [activeChat, setActiveChat] = useState<'bot' | 'admin'>('bot');
   const [botMessages, setBotMessages] = useState<{ sender: 'user' | 'bot'; text: string }[]>([]);
   const [adminMessages, setAdminMessages] = useState<{ sender: 'user' | 'bot'; text: string }[]>([]);
+  const shakeAnimation = {
+    shake: {
+      rotate: [0, -14, 14, -14, 14, 0],
+      transition: {
+        duration: 0.6,
+        ease: "easeInOut"
+      }
+    }
+  } as const satisfies Variants;
+
+  const [shake, setShake] = useState(false);
 
   // 🔥 NOW WE CAN SAFELY COMPUTE WHICH CONVO TO SHOW
   const messages = activeChat === 'bot' ? botMessages : adminMessages;
@@ -166,6 +178,8 @@ const FloatingChatbot: React.FC = () => {
     // Show the bot response
     setMiniMessage(last.text);
     setShowMiniBubble(true);
+    setShake(true);
+    setTimeout(() => setShake(false), 400);
 
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     hideTimerRef.current = setTimeout(() => {
@@ -189,7 +203,9 @@ const FloatingChatbot: React.FC = () => {
       if (!isOpen) {
         setMiniMessage(welcomeText);
         setShowMiniBubble(true);
-
+        // 🔥 Trigger shake on floating chatbot image
+        setShake(true);
+        setTimeout(() => setShake(false), 400);
         const miniTimer = setTimeout(() => setShowMiniBubble(false), 5000); // hide after 5 sec
         if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
         hideTimerRef.current = miniTimer;
@@ -241,7 +257,9 @@ const FloatingChatbot: React.FC = () => {
           setMiniMessage(latest.text);
           setIsMiniTyping(false);
           setShowMiniBubble(true);
-
+          // Trigger shake on floating chatbot image
+          setShake(true);
+          setTimeout(() => setShake(false), 400);
           // auto hide after 5s
           if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
           hideTimerRef.current = setTimeout(
@@ -321,7 +339,9 @@ const FloatingChatbot: React.FC = () => {
           setMiniMessage(botMessage);
           setIsMiniTyping(false);
           setShowMiniBubble(true);
-
+          // 🔥 Trigger shake on floating chatbot image
+          setShake(true);
+          setTimeout(() => setShake(false), 400);
           // auto hide after 5 seconds
           if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
           hideTimerRef.current = setTimeout(() => setShowMiniBubble(false), 5000);
@@ -404,27 +424,19 @@ const FloatingChatbot: React.FC = () => {
     <>
       {/* 💬 Floating Button */}
       {!isOpen && (
-        <motion.button
+        <motion.div
           onClick={handleOpenChat}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          className="
-            fixed
-            bottom-16    
-            right-16    
-            bg-gradient-to-r from-[#6D4C41] to-[#4E342E]
-            text-white
-            p-5
-            rounded-full
-            shadow-2xl
-            hover:shadow-3xl
-            transition-all
-            duration-300
-            z-50
-          "
+          className="fixed bottom-16 right-16 z-50 cursor-pointer"
         >
-          <FiMessageCircle size={36} />
-        </motion.button>
+          <motion.img
+            src="/PATHFINDER-logo-edited.png"
+            alt="Chatbot"
+            className="w-24 h-24 object-contain drop-shadow-xl"
+            variants={shakeAnimation}
+            animate={shake ? "shake" : ""}
+            draggable={false}
+          />
+        </motion.div>
       )}
 
     {/* 🟡 Mini Bubble */}
