@@ -150,24 +150,23 @@ const FloatingChatbot: React.FC = () => {
   const setMessages = activeChat === 'bot' ? setBotMessages : setAdminMessages;
   const [adminConversationId, setAdminConversationId] = useState<number | null>(null);
   const lastAdminMsgIdRef = useRef<number>(0);
- 
   useEffect(() => {
     if (activeChat !== "bot") return;
     if (isOpen) return;
-  
+
     const last = botMessages[botMessages.length - 1];
     if (!last) return;
-  
+
     // Only trigger for bot replies
     if (last.sender !== "bot") return;
-  
+
     // STOP the typing indicator
     setIsMiniTyping(false);
-  
+
     // Show the bot response
     setMiniMessage(last.text);
     setShowMiniBubble(true);
-  
+
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     hideTimerRef.current = setTimeout(() => {
       setShowMiniBubble(false);
@@ -208,6 +207,7 @@ const FloatingChatbot: React.FC = () => {
   // 🔄 AUTO-REFRESH ADMIN CHAT WHEN NEW MESSAGE ARRIVES
   useEffect(() => {
   if (!adminConversationId) return;
+  // 🔥 FIX BOT MINI-BUBBLE: Trigger when bot sends a new message & chat is CLOSED
 
   const interval = setInterval(async () => {
     try {
@@ -257,7 +257,6 @@ const FloatingChatbot: React.FC = () => {
 
   return () => clearInterval(interval);
 }, [adminConversationId, activeChat, isOpen]);
-
 
 
  const loadAdminMessages = async () => {
@@ -316,6 +315,18 @@ const FloatingChatbot: React.FC = () => {
           { user_id: userId, message: userMessage }
         );
         botMessage = response.data.reply || "...";
+        
+        // 🔥 If bot replied while chatbox is CLOSED → show mini-bubble
+        if (!isOpen && activeChat === "bot") {
+          setMiniMessage(botMessage);
+          setIsMiniTyping(false);
+          setShowMiniBubble(true);
+
+          // auto hide after 5 seconds
+          if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+          hideTimerRef.current = setTimeout(() => setShowMiniBubble(false), 5000);
+        }
+
       } else {
         // Admin endpoint - this expects conversation_id OR will create one
         const response = await axios.post(
@@ -595,6 +606,3 @@ const FloatingChatbot: React.FC = () => {
 
 
 export default Body;
-
-
-
