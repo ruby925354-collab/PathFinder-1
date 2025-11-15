@@ -2,6 +2,7 @@
 # Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
 
 import os
+import httpx
 import time
 import smtplib
 from sendgrid import SendGridAPIClient
@@ -53,8 +54,10 @@ from mysql.connector import pooling
 from routes import scholastic
 from routes import knowledge
 from routes import feedback
-from fastapi.middleware.cors import CORSMiddleware
 from routes import printing
+from routes import gateway
+ 
+from fastapi.middleware.cors import CORSMiddleware
 
 # ---------- FastAPI ----------
 app = FastAPI()
@@ -117,6 +120,8 @@ app.include_router(scholastic.router)
 app.include_router(knowledge.router)
 app.include_router(feedback.router)
 app.include_router(printing.router)
+app.include_router(gateway.router, prefix="/api")
+  # ✅ ensures /generate exists
 
 # ---------- Pydantic models ----------
 class RegisterRequest(BaseModel):
@@ -911,7 +916,7 @@ def retrain_daemon(interval=600):
 
 # Start the background thread
 import time
-threading.Thread(target=retrain_daemon, daemon=True).start()\
+threading.Thread(target=retrain_daemon, daemon=True).start()
 
 # def retrain_daemon():
 #     """Runs retraining once per day at midnight."""
@@ -1512,7 +1517,6 @@ def login_user(req: LoginRequest):
         if conn:
             conn.close()
 
-
 @app.get("/api/me")
 def get_profile(token: str = Depends(oauth2_scheme)):
     payload = verify_token(token)
@@ -1541,26 +1545,36 @@ def get_profile(token: str = Depends(oauth2_scheme)):
             WHERE u.user_id = %s
         """, (user_id,))
         user = cursor.fetchone()
+
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # 2️⃣ Personality & Program Result (supports multiple programs!)
+        # 2️⃣ Get ALL Personality Results
+        cursor.execute("""
+            SELECT p.personality_type
+            FROM user_personality_result upr
+            JOIN personality p ON upr.personality_id = p.personality_id
+            WHERE upr.user_id = %s
+        """, (user_id,))
+        personality_rows = cursor.fetchall() or []
+        personality_types = [row["personality_type"] for row in personality_rows]
+
+        # 3️⃣ Get exactly 3 Recommended Programs
         cursor.execute("""
             SELECT 
-                tr.test_result_id,
-                p.personality_type,
-                pr.program_id,
-                pr.program_name,
-                pr.program_details
-            FROM test_result tr
-            JOIN personality p ON tr.personality_id = p.personality_id
-            LEFT JOIN program_information pr ON tr.program_id = pr.program_id
-            WHERE tr.user_id = %s
+                urp.program_rank,
+                pi.program_id,
+                pi.program_name,
+                pi.program_details
+            FROM user_recommended_program urp
+            JOIN program_information pi ON urp.program_id = pi.program_id
+            WHERE urp.user_id = %s
+            ORDER BY urp.program_rank ASC
+            LIMIT 3
         """, (user_id,))
-        test_results = cursor.fetchall()  # ✅ Fetch all recommendations
-        personality_type = test_results[0]["personality_type"] if test_results else None
+        recommended_programs = cursor.fetchall() or []
 
-        # 3️⃣ Strong Knowledge Area (improved logic)
+        # 4️⃣ Strong Knowledge Area (Top 3)
         cursor.execute("""
             SELECT Mathematics, English, Science, Filipino, Reading_Comprehension,
                    Logical_Reasoning, Technology, Engineering, Accountancy,
@@ -1572,30 +1586,34 @@ def get_profile(token: str = Depends(oauth2_scheme)):
         knowledge = cursor.fetchone()
 
         strong_knowledge_area = None
+
         if knowledge:
-            # Convert all decimal values to float
-            knowledge_scores = {}
-            for k, v in knowledge.items():
-                try:
-                    knowledge_scores[k] = float(v or 0)
-                except Exception:
-                    knowledge_scores[k] = 0.0
+            # Convert MySQL decimal to float
+            knowledge_scores = {k: float(v or 0) for k, v in knowledge.items()}
 
-            # Find the subject with the highest score
-            top_subject, top_score = max(knowledge_scores.items(), key=lambda x: x[1])
+            # Sort by highest → lowest
+            sorted_scores = sorted(
+                knowledge_scores.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )
 
-            # Format into readable string
-            subject_clean = top_subject.replace("_", " ")
-            strong_knowledge_area = {
-                "subject": subject_clean,
-                "score": round(top_score * 100)
-            }
+            # Get top 3 results
+            top_three = sorted_scores[:3]
 
-        # 🧩 Combine all into one response
+            strong_knowledge_area = [
+                {
+                    "subject": subject.replace("_", " "),
+                    "score": round(score * 100)
+                }
+                for subject, score in top_three
+            ]
+
+        # 5️⃣ Return Combined Response
         return {
             "user": user,
-            "recommended_programs": test_results if test_results else [],
-            "personality_type": personality_type or "N/A",
+            "personalities": personality_types,
+            "recommended_programs": recommended_programs,
             "strong_knowledge_area": strong_knowledge_area
         }
 
@@ -1608,6 +1626,7 @@ def get_profile(token: str = Depends(oauth2_scheme)):
             cursor.close()
         if conn:
             conn.close()
+
 
 
 @app.get("/api/program-description")
@@ -2709,7 +2728,6 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
-
 
 
 
