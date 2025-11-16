@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import ChangePasswordModal from './ChangePasswordModal';
 import LogoutConfirmationModal from './LogoutConfirmationModal';
 import {
@@ -15,6 +16,7 @@ import {
   FaStar,
 } from 'react-icons/fa';
 import { useAuth } from '@/app/context/AuthContext';
+
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -61,7 +63,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [rating, setRating] = useState<number | null>(null);
   const [comments, setComments] = useState('');
   const [submittedFeedback, setSubmittedFeedback] = useState<{ rating: number; comments: string } | null>(null);
-
+  const [visibility, setVisibility] = useState("public");
   
   const [faqs] = useState([
     {
@@ -74,6 +76,26 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       answer: 'PathFinder is for SHS graduates from the ABM, STEM, and HUMSS strands.',
     },
   ]);
+
+  useEffect(() => {
+  const storedId = localStorage.getItem("user_id");
+  if (!storedId) return;
+
+  const fetchVisibility = async () => {
+    try {
+      const res = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/user/${storedId}/visibility`
+      );
+      setVisibility(res.data.visibility);
+    } catch (err) {
+      console.error("Failed to load visibility setting:", err);
+    }
+  };
+
+  fetchVisibility();
+}, []);
+
+
     useEffect(() => {
       const saved = localStorage.getItem("darkMode");
       if (saved) setIsDarkMode(saved === "true");
@@ -195,13 +217,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
             {/* Navigation */}
             <div className="flex md:flex-col justify-center md:justify-start items-center md:items-stretch gap-2 md:gap-3 px-3 py-3 md:p-6 bg-brown-5/20 backdrop-blur-sm overflow-x-auto md:overflow-visible">
-              {['Profile', 'Result', 'Settings', 'Feedback', 'Help'].map((section) => {
+              {['Profile', 'Result', 'Settings', 'Feedback'].map((section) => {
                 const icons: any = {
                   Profile: <FaUser className="text-lg md:text-2xl" />,
                   Result: <FaFileAlt className="text-lg md:text-2xl" />,
                   Settings: <FaCog className="text-lg md:text-2xl" />,
                   Feedback: <FaPencilAlt className="text-lg md:text-2xl" />,
-                  Help: <FaQuestionCircle className="text-lg md:text-2xl" />,
                 };
                 return (
                   <button
@@ -500,91 +521,112 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
             {/* Settings Section */}
             {activeSection === 'Settings' && (
-              <div>
-                <h2 className="text-5xl font-bold text-center text-brown-6 mt-10 mb-8">Settings</h2>
+              <div className="px-4">
+                <h2 className="text-4xl md:text-5xl font-bold text-center text-brown-6 mt-10 mb-8">
+                  Settings
+                </h2>
+
                 <div className="flex flex-col items-center gap-5">
+
+                  {/* Change Password */}
                   <button
                     onClick={() => setIsChangePasswordOpen(true)}
-                    className="w-[500px] h-20 bg-brown-1 hover:bg-brown-2 shadow-md text-gray-900 font-semibold rounded-2xl flex justify-center items-center transition-transform hover:scale-105"
+                    className="
+                      w-full max-w-md h-16 md:h-20 
+                      bg-brown-1 hover:bg-brown-2 
+                      shadow-md text-gray-900 font-semibold 
+                      rounded-2xl flex justify-center items-center 
+                      transition-transform hover:scale-105
+                    "
                   >
                     Change Password
                   </button>
-                  <label className="w-[500px] h-20 bg-brown-1 shadow-md text-gray-900 font-semibold rounded-2xl flex justify-between items-center px-6 hover:scale-105 transition-transform">
-                    Dark Mode
-                    <input type="checkbox" checked={isDarkMode} onChange={() => setIsDarkMode(!isDarkMode)} />
-                  </label>
-                    <div className="w-[500px] bg-brown-1 shadow-md text-gray-900 font-semibold rounded-2xl px-6 py-4 hover:scale-105 transition-transform">
-                      <button
-                        onClick={() => setIsLLMOpen(!isLLMOpen)}
-                        className="w-full flex justify-between items-center text-lg"
-                      >
-                        Large Language Model
-                        <FaChevronDown
-                          className={`transition-transform ${isLLMOpen ? "rotate-180" : ""}`}
-                        />
-                      </button>
 
-                      {isLLMOpen && (
-                        <div className="mt-3 bg-white rounded-xl border border-brown-3 shadow-inner p-3 flex flex-col gap-3">
+                  {/* Visibility Setting (Public / Private) */}
+<label
+  className="
+    w-full max-w-md h-16 md:h-20 
+    bg-brown-1 shadow-md text-gray-900 font-semibold 
+    rounded-2xl flex justify-between items-center 
+    px-4 md:px-6 hover:scale-105 transition-transform
+  "
+>
+  Account Visibility
+  <select
+    value={visibility}
+    onChange={async (e) => {
+      const newSetting = e.target.value;
+      setVisibility(newSetting);
 
-                          {AVAILABLE_LLMS.map((model) => (
-                            <button
-                              key={model.key}
-                              onClick={() => {
-                                setSelectedLLM(model.key); // store backend key
-                                setIsLLMOpen(false);
-                              }}
-                              className={`px-4 py-2 rounded-xl text-left transition-all ${
-                                selectedLLM === model.key
-                                  ? "bg-brown-2 text-brown-8 font-bold"
-                                  : "hover:bg-brown-1"
-                              }`}
-                            >
-                              {model.name} {/* display name */}
-                            </button>
-                          ))}
+      const storedId = localStorage.getItem("user_id");
+      if (!storedId) return;
 
-                        </div>
-                      )}
+      await axios.put(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/user/${storedId}/visibility`,
+        { visibility: newSetting }
+      );
+    }}
 
-                      {/* Selected model display */}
-                      <p className="mt-2 text-brown-8 text-sm">
-                        Selected Model: <span className="font-bold">
-                          {AVAILABLE_LLMS.find(m => m.key === selectedLLM)?.name || selectedLLM}
-                        </span>
-                      </p>
-                    </div>
+    className="bg-white border rounded-lg px-2 py-1"
+  >
+    <option value="public">Public</option>
+    <option value="private">Private</option>
+  </select>
+</label>
+
+
+                  {/* LLM Selector */}
+                  <div
+                    className="
+                      w-full max-w-md 
+                      bg-brown-1 shadow-md text-gray-900 font-semibold 
+                      rounded-2xl px-4 md:px-6 py-4 
+                      hover:scale-105 transition-transform
+                    "
+                  >
+                    <button
+                      onClick={() => setIsLLMOpen(!isLLMOpen)}
+                      className="w-full flex justify-between items-center text-lg"
+                    >
+                      Large Language Model
+                      <FaChevronDown
+                        className={`transition-transform ${isLLMOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+
+                    {isLLMOpen && (
+                      <div className="mt-3 bg-white rounded-xl border border-brown-3 shadow-inner p-3 flex flex-col gap-3">
+                        {AVAILABLE_LLMS.map((model) => (
+                          <button
+                            key={model.key}
+                            onClick={() => {
+                              setSelectedLLM(model.key);
+                              setIsLLMOpen(false);
+                            }}
+                            className={`px-4 py-2 rounded-xl text-left transition-all ${
+                              selectedLLM === model.key
+                                ? "bg-brown-2 text-brown-8 font-bold"
+                                : "hover:bg-brown-1"
+                            }`}
+                          >
+                            {model.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Selected Model */}
+                    <p className="mt-2 text-brown-8 text-sm">
+                      Selected Model:{" "}
+                      <span className="font-bold">
+                        {AVAILABLE_LLMS.find((m) => m.key === selectedLLM)?.name ||
+                          selectedLLM}
+                      </span>
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
-
-            {/* Help Section */}
-            {activeSection === 'Help' && (
-              <div>
-                <h2 className="text-5xl font-bold text-center text-brown-6 mt-10 mb-8">Help & FAQs</h2>
-                <div className="flex flex-col items-center gap-4">
-                  {faqs.map((faq, i) => (
-                    <div key={i} className="w-full max-w-xl">
-                      <button
-                        onClick={() => toggleQuestion(i)}
-                        className="w-full flex justify-between items-center bg-brown-1 text-gray-900 font-semibold text-lg p-4 rounded-2xl shadow-md hover:scale-105 transition-all"
-                      >
-                        {faq.question}
-                        <FaChevronDown
-                          className={`transition-transform ${activeQuestion === i ? 'rotate-180' : ''}`}
-                        />
-                      </button>
-                      {activeQuestion === i && (
-                        <div className="mt-2 bg-white border-l-4 border-brown-6 p-4 rounded-2xl text-gray-700 shadow-inner">
-                          {faq.answer}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Modals */}
             <ChangePasswordModal isOpen={isChangePasswordOpen} onClose={() => setIsChangePasswordOpen(false)} />
             <LogoutConfirmationModal
