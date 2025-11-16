@@ -5,6 +5,7 @@ import os
 import subprocess
 from pydantic import BaseModel
 from database import get_db_connection
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -16,13 +17,59 @@ class PersonalityScores(BaseModel):
     e_score: int | None = 0
     c_score: int | None = 0
 
+class VisibilityUpdate(BaseModel):
+    visibility: str  # "public" or "private"
+@router.get("/api/user/{user_id}/visibility")
+def get_user_visibility(user_id: int):
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+
+            cursor.execute("""
+                SELECT visibility 
+                FROM user_information 
+                WHERE user_id = %s
+            """, (user_id,))
+
+            row = cursor.fetchone()
+
+            if not row:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            return {"visibility": row["visibility"]}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/api/user/{user_id}/visibility")
+def update_user_visibility(user_id: int, data: VisibilityUpdate):
+    if data.visibility not in ["public", "private"]:
+        raise HTTPException(status_code=400, detail="Invalid visibility value")
+
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                UPDATE user_information
+                SET visibility = %s
+                WHERE user_id = %s
+            """, (data.visibility, user_id))
+
+            conn.commit()
+
+            return {"message": "Visibility updated successfully"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/api/user/{user_id}/report-data")
 def get_user_report_data(user_id: int):
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
 
-            # 🧩 1️⃣ Fetch User Info (name + email)
+            # 🧩 1️⃣ Fetch User Info
             cursor.execute("""
                 SELECT first_name, middle_name, last_name, extension, email
                 FROM user_information
@@ -33,13 +80,12 @@ def get_user_report_data(user_id: int):
             if not user_info:
                 raise HTTPException(status_code=404, detail="User not found")
 
-            full_name_parts = [
-                user_info.get("first_name", ""),
-                user_info.get("middle_name", ""),
-                user_info.get("last_name", ""),
-                user_info.get("extension", "")
-            ]
-            full_name = " ".join([part for part in full_name_parts if part]).strip()
+            full_name = " ".join([
+                user_info.get("first_name") or "",
+                user_info.get("middle_name") or "",
+                user_info.get("last_name") or "",
+                user_info.get("extension") or ""
+            ]).strip()
 
             # 🧩 2️⃣ Personality Scores
             cursor.execute("""
@@ -66,7 +112,7 @@ def get_user_report_data(user_id: int):
                 if key:
                     personality_scores[key] = row["total_score"]
 
-            # 🧩 3️⃣ Knowledge Scores and Percentages
+            # 🧩 3️⃣ Knowledge Test Scores
             cursor.execute("""
                 SELECT kt.category,
                        COUNT(*) AS total_items,
@@ -109,7 +155,7 @@ def get_user_report_data(user_id: int):
                     total = row["total_items"] or 0
                     knowledge_scores[key] = f"{correct}/{total}"
 
-            # Percentages & strand
+            # 🧩 3B️⃣ Percentages
             cursor.execute("""
                 SELECT *
                 FROM user_scholastic_knowledge_test
@@ -122,25 +168,18 @@ def get_user_report_data(user_id: int):
             if percent_row:
                 knowledge_scores["strand"] = percent_row.get("strand", "")
                 percent_map = {
-                    "Mathematics": "math_%",
-                    "English": "english_%",
-                    "Filipino": "filipino_%",
-                    "Science": "science_%",
-                    "Reading_Comprehension": "rc_%",
-                    "Logical_Reasoning": "lr_%",
-                    "Technology": "tech_%",
-                    "Engineering": "engineer_%",
-                    "Business": "business_%",
-                    "Management": "manage_%",
-                    "Humanities": "human_%",
-                    "Accountancy": "acc_%",
+                    "Mathematics": "math_%", "English": "english_%",
+                    "Filipino": "filipino_%", "Science": "science_%",
+                    "Reading_Comprehension": "rc_%", "Logical_Reasoning": "lr_%",
+                    "Technology": "tech_%", "Engineering": "engineer_%",
+                    "Business": "business_%", "Management": "manage_%",
+                    "Humanities": "human_%", "Accountancy": "acc_%",
                     "Social_Science": "ss_%"
                 }
                 for db_col, key in percent_map.items():
-                    value = percent_row.get(db_col, 0.0)
-                    knowledge_scores[key] = round(float(value) * 100, 2)
+                    knowledge_scores[key] = round(float(percent_row.get(db_col, 0.0)) * 100, 2)
 
-            # 🧩 4️⃣ Recommended Programs (Top 3)
+            # 🧩 4️⃣ Recommended Programs
             cursor.execute("""
                 SELECT p.program_name, p.program_details
                 FROM user_recommended_program urp
@@ -151,14 +190,68 @@ def get_user_report_data(user_id: int):
             """, (user_id,))
             programs = cursor.fetchall()
 
-            recommended = []
-            for row in programs:
-                recommended.append({
-                    "program_name": row["program_name"],
-                    "program_details": row["program_details"]
+            recommended = [
+                {
+                    "program_name": p["program_name"],
+                    "program_details": p["program_details"]
+                }
+                for p in programs
+            ]
+
+            # Scholastic Records
+            cursor.execute("""
+                SELECT strand
+                FROM user_scholastic_knowledge_test
+                WHERE user_id = %s
+                ORDER BY user_sk_id DESC
+                LIMIT 1;
+            """, (user_id,))
+            strand_row = cursor.fetchone()
+
+            scholastic_data = []
+
+            if strand_row:
+                cursor.execute("""
+                    SELECT s.scholastic_id, s.grade_level, s.semester, s.subjects,
+                           usr.grade
+                    FROM scholastic_record s
+                    LEFT JOIN user_scholastic_record usr 
+                        ON usr.scholastic_id = s.scholastic_id
+                        AND usr.user_id = %s
+                    WHERE s.strand = %s
+                    ORDER BY s.grade_level ASC, s.semester ASC, s.scholastic_id ASC;
+                """, (user_id, strand_row["strand"]))
+
+                for row in cursor.fetchall():
+                    scholastic_data.append({
+                        "grade_level": row["grade_level"],
+                        "semester": row["semester"],
+                        "subject": row["subjects"],
+                        "grade": row["grade"] if row["grade"] is not None else ""
+                    })
+
+            # 🧩 6️⃣ Convert scholastic data → DOCX placeholders
+            MAX_ROWS = 40  # number of rows in your DOCX
+            scholastic_flat = []
+
+            for r in scholastic_data:
+                scholastic_flat.append({
+                    "subject": r["subject"],
+                    "semester": str(r["semester"]),
+                    "grades": r["grade"] if r["grade"] != "" else "N/A"
                 })
 
-            # 🧩 Combine all sections
+            while len(scholastic_flat) < MAX_ROWS:
+                scholastic_flat.append({"subject": "", "semester": "", "grades": ""})
+
+            # Build placeholders
+            scholastic_placeholders = {}
+            for i in range(MAX_ROWS):
+                scholastic_placeholders[f"subject{i+1}"] = scholastic_flat[i]["subject"]
+                scholastic_placeholders[f"semester{i+1}"] = scholastic_flat[i]["semester"]
+                scholastic_placeholders[f"grades{i+1}"] = scholastic_flat[i]["grades"]
+
+            # 🧩 7️⃣ Final Result
             result = {
                 "full_name": full_name,
                 "email": user_info["email"],
@@ -170,12 +263,14 @@ def get_user_report_data(user_id: int):
                 "description2": recommended[1]["program_details"] if len(recommended) > 1 else "",
                 "program3": recommended[2]["program_name"] if len(recommended) > 2 else "",
                 "description3": recommended[2]["program_details"] if len(recommended) > 2 else "",
+                **scholastic_placeholders
             }
 
             return result
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.post("/api/convert-pdf")
@@ -191,9 +286,12 @@ async def convert_to_pdf(file: UploadFile = File(...)):
 
         pdf_path = tmp_docx_path.replace(".docx", ".pdf")
 
+        # ✅ Use the full path to soffice.exe
+        soffice_path = r"C:\Program Files\LibreOffice\program\soffice.exe"
+
         result = subprocess.run(
             [
-                "libreoffice",
+                soffice_path,  # <--- use the full path here
                 "--headless",
                 "--convert-to", "pdf",
                 "--outdir", os.path.dirname(pdf_path),
@@ -224,3 +322,25 @@ async def convert_to_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=504, detail="PDF conversion timed out")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error converting file: {e}")
+    
+@router.get("/information/{information_id}")
+def get_information_user(information_id: int):
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+
+            cursor.execute("""
+                SELECT user_id 
+                FROM information
+                WHERE information_id = %s
+            """, (information_id,))
+
+            row = cursor.fetchone()
+
+            if not row:
+                raise HTTPException(status_code=404, detail="Invalid information ID")
+
+            return row
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
