@@ -9,6 +9,12 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { FiSend, FiMessageCircle, FiX } from 'react-icons/fi';
 import { Variants } from "framer-motion";
+import {
+  whatTriggers,
+  howTriggers,
+  whyTriggers,
+  whoTriggers,
+} from "@/app/chatbot/index.js";
 import axios from 'axios';
 
 const Body = () => {
@@ -162,6 +168,11 @@ const FloatingChatbot: React.FC = () => {
   const setMessages = activeChat === 'bot' ? setBotMessages : setAdminMessages;
   const [adminConversationId, setAdminConversationId] = useState<number | null>(null);
   const lastAdminMsgIdRef = useRef<number>(0);
+  const [randomPrompts, setRandomPrompts] = useState<string[]>([]);
+  const [isBotTyping, setIsBotTyping] = useState(false);
+  const [showCommandPopup, setShowCommandPopup] = useState(false);
+  const [filteredCommands, setFilteredCommands] = useState<typeof COMMANDS>([]);
+
   useEffect(() => {
     if (activeChat !== "bot") return;
     if (isOpen) return;
@@ -196,21 +207,27 @@ const FloatingChatbot: React.FC = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       const welcomeText = "Hello, Welcome to PathFinder! Ask here if you need some questions.";
-      // Add bot message to chat
-      setMessages((prev) => [...prev, { sender: 'bot', text: welcomeText }]);
 
-      // Show mini-bubble if chat is closed
+      // Show typing animation
+      setIsBotTyping(true);
+
+      setTimeout(() => {
+        setIsBotTyping(false);
+        setMessages(prev => [...prev, { sender: "bot", text: welcomeText }]);
+      }, 1200);
+
+      // Mini bubble when chat is closed
       if (!isOpen) {
         setMiniMessage(welcomeText);
         setShowMiniBubble(true);
-        // 🔥 Trigger shake on floating chatbot image
         setShake(true);
         setTimeout(() => setShake(false), 400);
-        const miniTimer = setTimeout(() => setShowMiniBubble(false), 5000); // hide after 5 sec
+
         if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-        hideTimerRef.current = miniTimer;
+        hideTimerRef.current = setTimeout(() => setShowMiniBubble(false), 5000);
       }
-    }, 1000); // delay 1 second after login
+    }, 1000);
+
     return () => clearTimeout(timer);
   }, []);
 
@@ -276,6 +293,12 @@ const FloatingChatbot: React.FC = () => {
   return () => clearInterval(interval);
 }, [adminConversationId, activeChat, isOpen]);
 
+const COMMANDS = [
+  { cmd: "/find", description: "Search user info by 12-digit ID" },
+  { cmd: "/help", description: "Show help information" },
+  { cmd: "/reset", description: "Clear chat history" },
+];
+
 
  const loadAdminMessages = async () => {
     setIsAdminLoadingHistory(true);
@@ -306,80 +329,283 @@ const FloatingChatbot: React.FC = () => {
 
 
   // 🧠 Send message
-  const sendMessage = async () => {
-    // normalize input
-    if (!input.trim()) return;
-    const userMessage = input.trim();
+  const sendMessage = async (overrideMessage?: string) => {
+  const text = overrideMessage ?? input.trim();
+  if (!text) return;
 
-    // Prevent duplicate sends for the active chat
-    if (activeChat === "bot" && isSendingBot) return;
-    if (activeChat === "admin" && isSendingAdmin) return;
+  const userMessage = text;
 
-    // Add user message to UI and clear input immediately
-    setMessages(prev => [...prev, { sender: 'user', text: userMessage }]);
-    setInput('');
+  // Prevent duplicate sends
+  if (activeChat === "bot" && isSendingBot) return;
+  if (activeChat === "admin" && isSendingAdmin) return;
 
-    // Set appropriate sending flag
-    if (activeChat === "bot") setIsSendingBot(true);
-    else setIsSendingAdmin(true);
+  // Add user message instantly
+  setMessages(prev => [...prev, { sender: "user", text: userMessage }]);
+  setInput("");
 
-    try {
-      let botMessage = "";
+  // Activate correct sending flag
+  if (activeChat === "bot") setIsSendingBot(true);
+  else setIsSendingAdmin(true);
 
-      if (activeChat === "bot") {
-        // Replace with your bot endpoint
-        const response = await axios.post(
-          "https://toothy-cephalic-makena.ngrok-free.dev/chat",
-          { user_id: userId, message: userMessage }
-        );
-        botMessage = response.data.reply || "...";
-        
-        // 🔥 If bot replied while chatbox is CLOSED → show mini-bubble
-        if (!isOpen && activeChat === "bot") {
-          setMiniMessage(botMessage);
-          setIsMiniTyping(false);
-          setShowMiniBubble(true);
-          // 🔥 Trigger shake on floating chatbot image
-          setShake(true);
-          setTimeout(() => setShake(false), 400);
-          // auto hide after 5 seconds
-          if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-          hideTimerRef.current = setTimeout(() => setShowMiniBubble(false), 5000);
-        }
+  try {
+    let reply = "";
 
-      } else {
-        // Admin endpoint - this expects conversation_id OR will create one
-        const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/admin-chat/`,
-          {
-            user_id: userId,
-            conversation_id: adminConversationId ?? undefined,
-            message: userMessage,
-          }
-        );
+    const normalized = userMessage.toLowerCase().trim();
+// ---------------------------------------------
+//  CHECK FOR /find COMMAND WITH 12-DIGIT ID
+// ---------------------------------------------
+if (normalized.startsWith("/find ")) {
+  const inputId = normalized.replace("/find", "").trim();
 
-        // Save returned conversation id if present
-        if (response.data.conversation_id) {
-          setAdminConversationId(response.data.conversation_id);
-        }
+  // Must be exactly 12 digits numeric
+  if (!/^\d{12}$/.test(inputId)) {
+    if (activeChat === "bot") setIsSendingBot(false);
 
-        botMessage = response.data.reply || "Message sent to admin.";
-      }
+    setMessages(prev => [
+      ...prev,
+      { sender: "bot", text: "❌ Invalid format.\nUse: /find 000000000001" }
+    ]);
+    return;
+  }
 
-      // Append reply to UI
-      setMessages(prev => [...prev, { sender: 'bot', text: botMessage }]);
-    } catch (err) {
-      // append error message
+  // Convert padded number to real integer
+  const realId = parseInt(inputId, 10);
+
+  try {
+    // Step 1 — Get user_id from information table
+    const infoRes = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/information/${realId}`
+    );
+
+    const userIdFromInfo = infoRes.data.user_id;
+
+    // Step 2 — Fetch their full report-data
+    const reportRes = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/user/${userIdFromInfo}/report-data`
+    );
+
+    const data = reportRes.data;
+    // Fetch user's visibility
+    const visRes = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/user/${userIdFromInfo}/visibility`
+    );
+    const visibility = visRes.data.visibility;
+
+    // CENSOR IF PRIVATE
+    const displayName = visibility === "private"
+      ? "*************"
+      : data.full_name;
+
+    const displayEmail = visibility === "private"
+      ? "*************"
+      : data.email;
+
+    // Empty data → no personality/test/programs yet
+    if (!data || Object.keys(data).length === 0) {
       setMessages(prev => [
         ...prev,
-        { sender: 'bot', text: "⚠️ Server unavailable. Try later." }
+        { sender: "bot", text: "ℹ️ No info available for this user yet." }
       ]);
-    } finally {
-      // clear sending flag for the active chat
+
+      if (activeChat === "bot") setIsSendingBot(false);
+      return;
+    }
+
+    // Build scholastic records text
+let scholasticText = "📘 **Scholastic Record:**\n";
+
+let hasScholastic = false;
+
+for (let i = 1; i <= 40; i++) {
+  const subj = data[`subject${i}`];
+  const sem = data[`semester${i}`];
+  const grade = data[`grades${i}`];
+
+  // Skip empty rows
+  if (!subj && !sem && !grade) continue;
+
+  hasScholastic = true;
+
+  scholasticText += `\n• **${subj || "N/A"}** | Semester: ${sem || "N/A"} | Grade: ${grade || "N/A"}`;
+}
+
+if (!hasScholastic) scholasticText += "\nNo scholastic data available.\n";
+
+// FINAL RESPONSE WITH SCHOLASTIC SECTION INCLUDED
+const responseText =
+  `📌 **User Information Found**\n\n` +
+`👤 **Name:** ${displayName}\n` +
+`📧 **Email:** ${displayEmail}\n` +
+  `🎓 **Strand:** ${data.strand || "N/A"}\n\n` +
+  `🧠 **Personality Scores:**\n` +
+  `R: ${data.r_score}, I: ${data.i_score}, A: ${data.a_score}, S: ${data.s_score}, E: ${data.e_score}, C: ${data.c_score}\n\n` +
+  `📚 **Knowledge Test Summary:**\n` +
+  `Math: ${data.math_score}\nEnglish: ${data.english_score}\nScience: ${data.science_score}\nFilipino: ${data.filipino_score}\n
+  Logical Reasoning: ${data.lr_score}\nReading Comprehension: ${data.rc_score}\nTechnology: ${data.tech_score}\nEngineering: ${data.engineer_score}\n
+  Business: ${data.business_score}\nManagement: ${data.manage_score}\nHumanities: ${data.human_score}\nAccountancy: ${data.acc_score}\nSocial Science: ${data.ss_score}\n` + 
+  `🏆 **Recommended Programs:**\n` +
+  `1. ${data.program1}\n` +
+  `2. ${data.program2}\n` +
+  `3. ${data.program3}\n\n` +
+  scholasticText;
+
+
+    // stop sending indicator
+    if (activeChat === "bot") setIsSendingBot(false);
+
+    // simulate typing
+    setIsBotTyping(true);
+    await new Promise(res => setTimeout(res, 8000));
+    setIsBotTyping(false);
+
+    setMessages(prev => [...prev, { sender: "bot", text: responseText }]);
+  } catch (err: any) {
+    if (activeChat === "bot") setIsSendingBot(false);
+
+    if (err.response?.status === 404) {
+      setMessages(prev => [
+        ...prev,
+        { sender: "bot", text: "❌ Invalid information ID." }
+      ]);
+    } else {
+      setMessages(prev => [
+        ...prev,
+        { sender: "bot", text: "⚠️ Error fetching information." }
+      ]);
+    }
+  }
+
+  return; // stop execution
+}
+
+
+
+      
+    if (normalized.includes("what is pathfinder" ) || normalized.includes("what's pathfinder") || normalized.includes("define pathfinder") 
+      || normalized.includes("what pathfinder") || normalized.includes("explain pathfinder") || normalized.includes("tell me about pathfinder")
+    || normalized.includes("pathfinder is") || normalized.includes("what is this system")) {
+      const reply = "PathFinder recommends three suitable college programs for Senior High School (SHS) graduates based on their personality, knowledge, and scholastic records.";
+
       if (activeChat === "bot") setIsSendingBot(false);
       else setIsSendingAdmin(false);
+
+      setIsBotTyping(true);
+      await new Promise(res => setTimeout(res, 6000));
+      setIsBotTyping(false);
+
+      setMessages(prev => [...prev, { sender: "bot", text: reply }]);
+      return;
     }
-  };
+
+    // Groups of accepted exact phrases
+    const faq = [
+      {
+        triggers: whatTriggers,
+        reply: "PathFinder recommends three suitable college programs for Senior High School (SHS) graduates based on their personality, knowledge, and scholastic records."
+      },
+      {
+        triggers: howTriggers,
+        reply: "You can use PathFinder by simply asking a question. The chatbot will respond instantly or forward your query to an admin."
+      },
+      {
+        triggers: whyTriggers,
+        reply: "PathFinder exists to make support simple, fast, and always available for users who need help."
+      },
+      {
+        triggers: whoTriggers,
+        reply: "PathFinder is developed by a researcher named Engilbert Ollero Sarino, Bryanjohn Vistar, Jerone Louise Velebrado and Andrew Garcia with the guidance of their adviser, Cloie May Beatrize Estiandan"
+      }
+    ];
+
+    // 🔍 Check each FAQ group
+    for (const f of faq) {
+      if (f.triggers.includes(normalized)) {
+        const reply = f.reply;
+
+        // Stop sending… indicator
+        if (activeChat === "bot") setIsSendingBot(false);
+        else setIsSendingAdmin(false);
+
+        // Show typing
+        setIsBotTyping(true);
+        await new Promise(res => setTimeout(res, 6000));
+        setIsBotTyping(false);
+
+        // Push reply to chat
+        setMessages(prev => [...prev, { sender: "bot", text: reply }]);
+
+        return; // ⛔ STOP — NO API CALL
+      }
+    }
+
+    // -----------------------------
+    // BOT CHAT (API)
+    // -----------------------------
+    if (activeChat === "bot") {
+      const response = await axios.post(
+        "https://toothy-cephalic-makena.ngrok-free.dev/chat",
+        { user_id: userId, message: userMessage }
+      );
+
+      reply = response.data.reply || "...";
+
+      // End Sending…
+      setIsSendingBot(false);
+
+      // Show typing dots
+      setIsBotTyping(true);
+      await new Promise(res => setTimeout(res, 900));
+      setIsBotTyping(false);
+
+      setMessages(prev => [...prev, { sender: "bot", text: reply }]);
+
+      // Mini bubble if chat is closed
+      if (!isOpen) {
+        setMiniMessage(reply);
+        setShowMiniBubble(true);
+        setShake(true);
+        setTimeout(() => setShake(false), 400);
+
+        if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = setTimeout(() => setShowMiniBubble(false), 5000);
+      }
+
+      return;
+    }
+
+    // -----------------------------
+    // ADMIN CHAT
+    // -----------------------------
+    const res = await axios.post(
+      `${process.env.NEXT_PUBLIC_API_URL}/admin-chat/`,
+      {
+        user_id: userId,
+        conversation_id: adminConversationId ?? undefined,
+        message: userMessage
+      }
+    );
+
+    if (res.data.conversation_id) {
+      setAdminConversationId(res.data.conversation_id);
+    }
+
+    reply = res.data.reply || "Message sent to admin.";
+
+    setIsSendingAdmin(false);
+
+    // Admin does NOT use typing delay
+    setMessages(prev => [...prev, { sender: "bot", text: reply }]);
+  } catch (err) {
+    if (activeChat === "bot") setIsSendingBot(false);
+    else setIsSendingAdmin(false);
+
+    setMessages(prev => [
+      ...prev,
+      { sender: "bot", text: "⚠️ Server unavailable. Try later." }
+    ]);
+  }
+};
+
 
 
 
@@ -404,6 +630,9 @@ const FloatingChatbot: React.FC = () => {
     setIsOpen(true);
     setShowMiniBubble(false);
     setIsMiniTyping(false);
+    // ⭐ Pick 3 random unique prompts
+    const shuffled = [...SUGGESTED_PROMPTS].sort(() => 0.5 - Math.random());
+    setRandomPrompts(shuffled.slice(0, 3));
   };
 
   useEffect(() => {
@@ -419,6 +648,26 @@ const FloatingChatbot: React.FC = () => {
       }, 50);
     }
   }, [isOpen, activeChat]);
+
+  const SUGGESTED_PROMPTS = [
+    "What is Pathfinder?",
+    "How does Pathfinder work?",
+    "Who is involved in Pathfinder?",
+    "Why should I use Pathfinder?",
+    "How to use this system?",
+    "What is this system about?",
+    "What can you do?",
+  ];
+  // ONLY send suggested prompts to the BOT, never to admin
+  const sendSuggested = (msg: string) => {
+    if (activeChat !== "bot") {
+      // force switch to bot tab if needed
+      setActiveChat("bot");
+    }
+
+    setInput(""); // clear input box
+    sendMessage(msg); // instantly execute send (bot-only)
+  };
 
   return (
     <>
@@ -492,17 +741,6 @@ const FloatingChatbot: React.FC = () => {
       {/* 🪟 Chat Window */}
       {isOpen && (
         <>
-
-          {/* 🌟 EXPANDING LOGO ABOVE THE CHATBOX */}
-          <motion.img
-            src="/PATHFINDER-logo-edited.png"
-            alt="Chatbot Logo"
-            initial={{ scale: 0.3, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="absolute bottom-[580px] right-25 md:bottom-[570px] md:right-[540px] w-24 h-24 z-[60]"
-          />
-
           <motion.div
             initial={{ opacity: 0, scale: 0.8, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -590,16 +828,77 @@ const FloatingChatbot: React.FC = () => {
                 Sending to admin…
               </div>
             )}
-
+            {/* BOT TYPING INDICATOR (after sending indicator finishes) */}
+            {activeChat === "bot" && isBotTyping && (
+              <div className="flex justify-start">
+                <div className="px-5 py-3 rounded-2xl bg-[#EFE6DD] text-[#3E2723] shadow text-lg flex gap-2">
+                  <span className="animate-bounce">•</span>
+                  <span className="animate-bounce delay-100">•</span>
+                  <span className="animate-bounce delay-200">•</span>
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
-
+          {activeChat === "bot" && (
+            <div className="px-5 pb-2 pt-3 bg-white/90 flex flex-wrap gap-2 z-50">
+              {randomPrompts.map((prompt, i) => (
+                <button
+                  key={i}
+                  onClick={() => sendSuggested(prompt)}
+                  className="
+                    text-sm px-3 py-2 rounded-full
+                    bg-[#EFE6DD] text-[#3E2723]
+                    border border-[#D6C7B2]
+                    hover:bg-[#E0D4C2]
+                    transition-all shadow-sm
+                  "
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Slash Command Popup */}
+          {showCommandPopup && filteredCommands.length > 0 && activeChat === "bot" && (
+            <div className="absolute bottom-28 left-0 w-full px-6 z-[999]">
+              <div className="bg-white border border-gray-300 rounded-xl shadow-lg p-3">
+                {filteredCommands.map((c, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      setInput(c.cmd + " ");
+                      setShowCommandPopup(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 flex flex-col"
+                  >
+                    <span className="font-semibold">{c.cmd}</span>
+                    <span className="text-gray-600 text-sm">{c.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
          {/* Input */}
           <div className="p-5 border-t border-gray-200 flex items-center gap-4 bg-white/95 backdrop-blur-sm">
             <input
               type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+              const val = e.target.value;
+              setInput(val);
+
+              if (val.startsWith("/")) {
+                const filter = val.toLowerCase();
+                setFilteredCommands(
+                  COMMANDS.filter(c => c.cmd.startsWith(filter))
+                );
+                setShowCommandPopup(true);
+              } else {
+                setShowCommandPopup(false);
+              }
+            }}
+
               onKeyDown={(e) => e.key === 'Enter' && !(activeChat === "bot" ? isSendingBot : isSendingAdmin) && sendMessage()}
               placeholder="Type your message..."
               disabled={activeChat === "bot" ? isSendingBot : isSendingAdmin}
@@ -611,7 +910,11 @@ const FloatingChatbot: React.FC = () => {
             />
 
             <motion.button
-              onClick={!(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? sendMessage : undefined}
+              onClick={
+                !(activeChat === "bot" ? isSendingBot : isSendingAdmin)
+                  ? () => sendMessage()
+                  : undefined
+              }
               whileHover={!(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? { scale: 1.05 } : {}}
               whileTap={!(activeChat === "bot" ? isSendingBot : isSendingAdmin) ? { scale: 0.95 } : {}}
               disabled={activeChat === "bot" ? isSendingBot : isSendingAdmin}
