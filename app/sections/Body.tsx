@@ -412,7 +412,7 @@ if (normalized.startsWith("/find ")) {
     }
 
     // Build scholastic records text
-let scholasticText = "📘 **Scholastic Record:**\n";
+let scholasticText = "\n **Scholastic Record:**\n";
 
 let hasScholastic = false;
 
@@ -426,7 +426,7 @@ for (let i = 1; i <= 40; i++) {
 
   hasScholastic = true;
 
-  scholasticText += `\n• **${subj || "N/A"}** | Semester: ${sem || "N/A"} | Grade: ${grade || "N/A"}`;
+  scholasticText += `\n\n• **${subj || "N/A"}** | Semester: ${sem || "N/A"} | Grade: ${grade || "N/A"}`;
 }
 
 if (!hasScholastic) scholasticText += "\nNo scholastic data available.\n";
@@ -434,19 +434,19 @@ if (!hasScholastic) scholasticText += "\nNo scholastic data available.\n";
 // FINAL RESPONSE WITH SCHOLASTIC SECTION INCLUDED
 const responseText =
   `📌 **User Information Found**\n\n` +
-`👤 **Name:** ${displayName}\n` +
-`📧 **Email:** ${displayEmail}\n` +
-  `🎓 **Strand:** ${data.strand || "N/A"}\n\n` +
-  `🧠 **Personality Scores:**\n` +
-  `R: ${data.r_score}, I: ${data.i_score}, A: ${data.a_score}, S: ${data.s_score}, E: ${data.e_score}, C: ${data.c_score}\n\n` +
-  `📚 **Knowledge Test Summary:**\n` +
-  `Math: ${data.math_score}\nEnglish: ${data.english_score}\nScience: ${data.science_score}\nFilipino: ${data.filipino_score}\n
+`**Name:** ${displayName}\n` +
+` \n**Email:** ${displayEmail}\n` +
+  ` \n**Strand:** ${data.strand || "N/A"}\n\n` +
+  `\n **Personality Scores:**\n` +
+  `\nR: ${data.r_score}, I: ${data.i_score}, A: ${data.a_score}, S: ${data.s_score}, E: ${data.e_score}, C: ${data.c_score}\n\n` +
+  `\n**Knowledge Test Summary:**\n` +
+  `\nMath: ${data.math_score}\nEnglish: ${data.english_score}\nScience: ${data.science_score}\nFilipino: ${data.filipino_score}\n
   Logical Reasoning: ${data.lr_score}\nReading Comprehension: ${data.rc_score}\nTechnology: ${data.tech_score}\nEngineering: ${data.engineer_score}\n
   Business: ${data.business_score}\nManagement: ${data.manage_score}\nHumanities: ${data.human_score}\nAccountancy: ${data.acc_score}\nSocial Science: ${data.ss_score}\n` + 
-  `🏆 **Recommended Programs:**\n` +
-  `1. ${data.program1}\n` +
-  `2. ${data.program2}\n` +
-  `3. ${data.program3}\n\n` +
+  `\n **Recommended Programs:**\n` +
+  `\n1. ${data.program1}\n` +
+  `\n2. ${data.program2}\n` +
+  `\n3. ${data.program3}\n\n` +
   scholasticText;
 
 
@@ -935,3 +935,4 @@ const responseText =
 
 
 export default Body;
+
