@@ -87,6 +87,16 @@ def get_user_report_data(user_id: int):
                 user_info.get("extension") or ""
             ]).strip()
 
+            # Get information_id
+            cursor.execute("""
+                SELECT information_id
+                FROM information
+                WHERE user_id = %s
+            """, (user_id,))
+            info_row = cursor.fetchone()
+            
+            information_id = info_row["information_id"] if info_row else "N/A"
+
             # 🧩 2️⃣ Personality Scores
             cursor.execute("""
                 SELECT p.personality_type, SUM(upt.answer) AS total_score
@@ -255,6 +265,7 @@ def get_user_report_data(user_id: int):
             result = {
                 "full_name": full_name,
                 "email": user_info["email"],
+                "information_id": information_id,
                 **personality_scores,
                 **knowledge_scores,
                 "program1": recommended[0]["program_name"] if len(recommended) > 0 else "",
@@ -345,4 +356,5 @@ def get_information_user(information_id: int):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
