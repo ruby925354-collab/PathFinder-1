@@ -54,7 +54,6 @@ const Body = () => {
     setTimeout(() => {
       const roleId = localStorage.getItem('role_id');
       if (roleId === '1') router.push('/admin');
-      else router.push('/Gradings');
     }, 300);
   };
 
@@ -935,5 +934,6 @@ const responseText =
 
 
 export default Body;
+
 
 
