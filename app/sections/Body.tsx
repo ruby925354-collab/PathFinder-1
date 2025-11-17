@@ -433,20 +433,20 @@ if (!hasScholastic) scholasticText += "\nNo scholastic data available.\n";
 
 // FINAL RESPONSE WITH SCHOLASTIC SECTION INCLUDED
 const responseText =
-  `📌 **User Information Found**\n\n` +
-`**Name:** ${displayName}\n` +
-` \n**Email:** ${displayEmail}\n` +
-  ` \n**Strand:** ${data.strand || "N/A"}\n\n` +
-  `\n **Personality Scores:**\n` +
-  `\nR: ${data.r_score}, I: ${data.i_score}, A: ${data.a_score}, S: ${data.s_score}, E: ${data.e_score}, C: ${data.c_score}\n\n` +
-  `\n**Knowledge Test Summary:**\n` +
-  `\nMath: ${data.math_score}\nEnglish: ${data.english_score}\nScience: ${data.science_score}\nFilipino: ${data.filipino_score}\n
-  Logical Reasoning: ${data.lr_score}\nReading Comprehension: ${data.rc_score}\nTechnology: ${data.tech_score}\nEngineering: ${data.engineer_score}\n
-  Business: ${data.business_score}\nManagement: ${data.manage_score}\nHumanities: ${data.human_score}\nAccountancy: ${data.acc_score}\nSocial Science: ${data.ss_score}\n` + 
-  `\n **Recommended Programs:**\n` +
-  `\n1. ${data.program1}\n` +
-  `\n2. ${data.program2}\n` +
-  `\n3. ${data.program3}\n\n` +
+  `📌 ##User Information Found##\n\n` +
+`##||Name: ${displayName}||##\n` +
+` \n##||Email: ${displayEmail}||##\n` +
+  ` \n##||Strand: ${data.strand || "N/A"}||##\n\n` +
+  `\n\n||**Personality Scores:**||\n` +
+  `\n##||R: ${data.r_score}| I: ${data.i_score}| A: ${data.a_score}| S: ${data.s_score}| E: ${data.e_score}| C: ${data.c_score}||##\n\n` +
+  `\n##||Knowledge Test Summary||##\n` +
+  `\n##Math: ${data.math_score}##\nEnglish: ${data.english_score}##\nScience: ${data.science_score}##\nFilipino: ${data.filipino_score}##\n
+  Logical Reasoning: ${data.lr_score}##\nReading Comprehension: ${data.rc_score}##\nTechnology: ${data.tech_score}##\nEngineering: ${data.engineer_score}##\n
+  Business: ${data.business_score}##\nManagement: ${data.manage_score}##\nHumanities: ${data.human_score}##\nAccountancy: ${data.acc_score}##\nSocial Science: ${data.ss_score}##\n` + 
+  `\n ||**Recommended Programs:**||\n` +
+  `\n##||1. ${data.program1}||##\n` +
+  `\n##||2. ${data.program2}||##\n` +
+  `\n##||3. ${data.program3}||##\n\n` +
   scholasticText;
 
 
@@ -935,4 +935,5 @@ const responseText =
 
 
 export default Body;
+
 
