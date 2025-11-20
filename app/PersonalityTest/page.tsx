@@ -26,6 +26,20 @@ const PersonalityTest = () => {
   const [resultType, setResultType] = useState<string | null>(null);
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+  const [isClientReady, setIsClientReady] = useState(false);
+  useEffect(() => {
+  // prevents infinite reload loop
+  if (!sessionStorage.getItem("pt_refreshed")) {
+    sessionStorage.setItem("pt_refreshed", "yes");
+    window.location.reload();
+  }
+}, []);
+
+
+  useEffect(() => {
+    // Ensure browser APIs like localStorage are ready
+    setIsClientReady(true);
+  }, []);
 
   useEffect(() => {
     if (questions.length > 0) {
@@ -35,52 +49,56 @@ const PersonalityTest = () => {
   }, [questions]);
 
 
-  // 🧭 1️⃣ Redirect to home if not logged in
-  useEffect(() => {
-    const userId = localStorage.getItem('user_id');
-    if (!userId) {
-      alert('You must be logged in to access this page.');
-      router.push('/');
-    }
-  }, [router]);
+// Wait until the component is fully mounted
+useEffect(() => {
+  if (!isClientReady) return;
 
-  // 🧭 2️⃣ Prevent access if Scholastic Record is not completed
-  useEffect(() => {
-    const checkScholasticCompletion = async () => {
-      try {
-        const userId = localStorage.getItem('user_id');
-        if (!userId) return;
+  const userId = localStorage.getItem('user_id');
+  if (!userId) {
+    alert('You must be logged in to access this page.');
+    router.push('/');
+  }
+}, [isClientReady, router]);
 
-        // 🧩 Check if user has completed strand and records
-        const strandRes = await axios.get(`${API_BASE_URL}/api/scholastic/user-strand/${userId}`);
-        const recordRes = await axios.get(`${API_BASE_URL}/api/scholastic/records/${userId}`);
+useEffect(() => {
+  if (!isClientReady) return;
 
-        const hasStrand = strandRes.data && strandRes.data.strand;
-        const hasRecords = recordRes.data && recordRes.data.records && recordRes.data.records.length > 0;
+  const checkScholasticCompletion = async () => {
+    try {
+      const userId = localStorage.getItem('user_id');
+      if (!userId) return;
 
-        if (!hasStrand || !hasRecords) {
-          alert('Please complete your Scholastic Record before taking the Personality Test.');
-          router.replace('/Gradings');
-        }
-      } catch (err) {
-        console.error('Error checking Scholastic completion:', err);
-        alert('Unable to verify your scholastic record. Please try again.');
-        router.replace('/ScholasticRecord');
+      const strandRes = await axios.get(`${API_BASE_URL}/api/scholastic/user-strand/${userId}`);
+      const recordRes = await axios.get(`${API_BASE_URL}/api/scholastic/records/${userId}`);
+
+      const hasStrand = strandRes.data?.strand;
+      const hasRecords = recordRes.data?.records?.length > 0;
+
+      if (!hasStrand || !hasRecords) {
+        alert('Please complete your Scholastic Record before taking the Personality Test.');
+        router.replace('/Gradings');
       }
-    };
+    } catch (err) {
+      console.error('Error checking Scholastic completion:', err);
+      alert('Unable to verify your scholastic record. Please try again.');
+      router.replace('/ScholasticRecord');
+    }
+  };
 
-    checkScholasticCompletion();
-  }, [API_BASE_URL, router]);
+  checkScholasticCompletion();
+}, [API_BASE_URL, isClientReady, router]);
 
-  // 🧭 3️⃣ Redirect admin away (optional)
-  useEffect(() => {
-    const roleId = localStorage.getItem('role_id');
-    if (roleId === '1') router.replace('/admin');
-  }, [router]);
+useEffect(() => {
+  if (!isClientReady) return;
 
-  // 🧩 Fetch questions
-  useEffect(() => {
-    const fetchInitialData = async () => {
+  const roleId = localStorage.getItem('role_id');
+  if (roleId === '1') router.replace('/admin');
+}, [isClientReady, router]);
+
+useEffect(() => {
+  if (!isClientReady) return;   // 🧠 FIXED LINE
+
+  const fetchInitialData = async () => {
       try {
         const user_id = localStorage.getItem('user_id');
         if (!user_id) return;
@@ -115,7 +133,7 @@ const PersonalityTest = () => {
 
     const seen = localStorage.getItem('seenPersonalityNotice');
     if (seen) setShowNotification(false);
-  }, [API_BASE_URL]);
+  }, [API_BASE_URL, isClientReady]);
 
   const handleStart = () => {
     localStorage.setItem('seenPersonalityNotice', 'true');
@@ -211,9 +229,32 @@ const PersonalityTest = () => {
       setLoading(false);
     }
   };
+  // ⬇️ AUTO REFRESH ON FIRST LOAD
+useEffect(() => {
+  if (!isClientReady) return;
+
+  // Only refresh once per session
+  if (!localStorage.getItem("personalityTestRefreshed")) {
+    localStorage.setItem("personalityTestRefreshed", "true");
+    window.location.reload();
+  }
+}, [isClientReady]);
+
 
   const currentQuestion = questions[currentQuestionIndex];
   const isAnswered = currentQuestion?.answered;
+  // 🚀 Force refresh once on the first visit
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const alreadyRefreshed = sessionStorage.getItem("pt_refreshed");
+
+    if (!alreadyRefreshed) {
+      sessionStorage.setItem("pt_refreshed", "true");
+      window.location.reload(); // FORCE REFRESH
+    }
+  }, []);
+
 
   return (
     <div className="flex flex-col justify-center items-center min-h-screen px-6 bg-[#F5E9DA]">
