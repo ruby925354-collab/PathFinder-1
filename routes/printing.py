@@ -300,7 +300,7 @@ async def convert_to_pdf(file: UploadFile = File(...)):
         pdf_path = tmp_docx_path.replace(".docx", ".pdf")
 
         # ✅ Use the full path to soffice.exe
-        soffice_path = r"C:\Program Files\LibreOffice\program\soffice.exe"
+        soffice_path = "/usr/bin/soffice"
 
         result = subprocess.run(
             [
@@ -357,3 +357,4 @@ def get_information_user(information_id: int):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
