@@ -39,14 +39,14 @@ const Result = () => {
 
   const router = useRouter();
 
-  // 🧩 Load user_id
+  // Load user_id
   useEffect(() => {
     const storedId = localStorage.getItem('user_id');
     if (storedId) setUserId(storedId);
     else setError('No user logged in. Please sign in first.');
   }, []);
 
-  // 🧠 Fetch results (only from backend test-results)
+  // Fetch results (only from backend test-results)
   useEffect(() => {
     const fetchResults = async () => {
       if (!userId) return;
@@ -136,7 +136,7 @@ const Result = () => {
   };
 
 
-  // 🔍 Fetch program details when clicked
+  // Fetch program details when clicked
   const handleProgramClick = async (program: Program) => {
     setSelectedProgram(program);
     setLoadingProgram(true);
@@ -153,23 +153,23 @@ const Result = () => {
     }
   };
 
-  // 🌀 Loading Overlay
+  // Loading Overlay
   if (isLoading) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#3E2723]/80 backdrop-blur-sm text-[#EFEBE9]">
         <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-[#EFEBE9] mb-6"></div>
-        <p className="text-2xl font-semibold tracking-wide">Generating your results...</p>
+        <p className="text-lg sm:text-2xl font-semibold tracking-wide">Generating your results...</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col justify-center items-center min-h-screen px-6 bg-[#EFEBE9]">
+    <div className="flex flex-col items-center min-h-screen px-4 sm:px-6 py-6 bg-[#EFEBE9]">
       {showNotification ? (
-        // 🔸 Steps Overlay
+        //  Steps Overlay
         <div className="fixed inset-0 flex justify-center items-center bg-[#3E2723]/70 backdrop-blur-sm">
           <div className="bg-[#D7CCC8] text-[#3E2723] pt-16 pb-14 px-12 rounded-2xl shadow-2xl w-full max-w-xl">
-            <h2 className="text-3xl font-bold mb-10 text-center">Steps Completed</h2>
+            <h2 className="text-xl sm:text-3xl font-bold mb-10 text-center">Steps Completed</h2>
             <ul className="list-decimal pl-8 mb-10 text-lg space-y-4">
               <li className="flex items-center gap-3">
                 <FaCheckCircle className="text-[#5D4037]" size={22} /> Scholastic Record
@@ -197,9 +197,9 @@ const Result = () => {
         <p className="text-[#3E2723]">Loading results...</p>
       ) : (
         <>
-          {/* 🔸 Results Card */}
-          <div className="bg-gradient-to-b from-[#EDE0D4] to-[#D7CCC8] text-[#3E2723] shadow-2xl rounded-3xl p-12 w-full max-w-4xl border border-[#BCAAA4] transition-all duration-500 hover:shadow-[0_0_30px_rgba(60,30,10,0.25)]">
-            <h1 className="text-5xl font-extrabold text-center mb-12 tracking-wide drop-shadow-sm">
+          {/* Results Card */}
+          <div className="bg-gradient-to-b from-[#EDE0D4] to-[#D7CCC8] text-[#3E2723] shadow-2xl rounded-2xl p-6 sm:p-10 w-full max-w-4xl border border-[#BCAAA4]">
+            <h1 className="text-xl sm:text-3xl font-extrabold text-center mb-8 sm:mb-12">
                Your Assessment Results
             </h1>
 
@@ -207,9 +207,9 @@ const Result = () => {
             <section className="mb-10">
               <div className="flex items-center gap-4 mb-4 border-b border-[#BCAAA4] pb-2">
                 <FaUser className="text-[#4E342E]" size={32} />
-                <h2 className="text-3xl font-bold">Personality Type</h2>
+                <h2 className="text-xl sm:text-3xl font-bold">Personality Type</h2>
               </div>
-              <p className="text-2xl ml-10 leading-relaxed">
+              <p className="text-lg sm:text-2xl ml-10 leading-relaxed">
                 Your dominant personality type is{' '}
                 <span className="font-extrabold text-[#3E2723] underline decoration-[#6D4C41]/60 decoration-4">
                   {results.personality_types?.join(', ') || 'N/A'}
@@ -221,10 +221,10 @@ const Result = () => {
             <section className="mb-10">
               <div className="flex items-center gap-4 mb-4 border-b border-[#BCAAA4] pb-2">
                 <FaBrain className="text-[#4E342E]" size={32} />
-                <h2 className="text-3xl font-bold">Knowledge Strength</h2>
+                <h2 className="text-xl sm:text-3xl font-bold">Knowledge Strength</h2>
               </div>
 
-              <p className="text-2xl ml-10 leading-relaxed">
+              <p className="text-lg sm:text-2xl ml-10 leading-relaxed">
                 You scored highest in{" "}
                 <span className="font-semibold text-[#4E342E]">
                   {results.highest_knowledge_categories?.join(", ") || "N/A"}
@@ -240,25 +240,25 @@ const Result = () => {
             <section className="mb-10">
               <div className="flex items-center gap-4 mb-4 border-b border-[#BCAAA4] pb-2">
                 <FaListOl className="text-[#4E342E]" size={32} />
-                <h2 className="text-3xl font-bold">Top 3 Recommended Programs</h2>
+                <h2 className="text-xl sm:text-3xl font-bold">Top 3 Recommended Programs</h2>
               </div>
 
               {results.final_top3 && results.final_top3.length > 0 ? (
-                <ol className="ml-8 space-y-6 text-2xl">
+                <ol className="ml-2 sm:ml-8 space-y-4 sm:space-y-6 text-lg sm:text-2xl">
                   {results.final_top3.map((prog, index) => (
                     <li
                       key={index}
                       className="bg-[#EFEBE9] p-5 rounded-2xl shadow-md hover:shadow-lg hover:scale-[1.02] cursor-pointer transition-all border border-[#BCAAA4]"
                       onClick={() => handleProgramClick(prog)}
                     >
-                      <div className="font-bold text-3xl text-[#3E2723]">
+                      <div className="font-bold text-xl sm:text-3xl text-[#3E2723]">
                         {prog.rank ?? index + 1}. {prog.label}
                       </div>
                     </li>
                   ))}
                 </ol>
               ) : (
-                <p className="ml-6 text-xl text-gray-700 italic">
+                <p className="ml-6 text-base sm:text-xl text-gray-700 italic">
                   No recommendations available.
                 </p>
               )}
@@ -268,7 +268,7 @@ const Result = () => {
             <div className="flex justify-center mt-12 gap-6">
               <button
                 onClick={() => router.push('/')}
-                className="flex items-center gap-3 bg-[#3E2723] text-[#EFEBE9] px-10 py-4 rounded-2xl text-2xl font-semibold hover:bg-[#4E342E] hover:scale-[1.03] transition-all duration-300 shadow-lg"
+                className="flex items-center gap-3 bg-[#3E2723] text-[#EFEBE9] px-10 py-4 rounded-2xl text-lg sm:text-2xl font-semibold hover:bg-[#4E342E] hover:scale-[1.03] transition-all duration-300 shadow-lg"
               >
                 <FaHome size={24} />
                 Return Home
@@ -277,7 +277,7 @@ const Result = () => {
               <button
                 onClick={handleDownloadReport}
                 disabled={isLoading}
-                className={`flex items-center gap-3 px-10 py-4 rounded-2xl text-2xl font-semibold shadow-lg transition-all duration-300 ${
+                className={`flex items-center gap-3 px-10 py-4 rounded-2xl text-lg sm:text-2xl font-semibold shadow-lg transition-all duration-300 ${
                   isLoading
                     ? "bg-gray-400 cursor-not-allowed"
                     : "bg-[#6D4C41] text-[#EFEBE9] hover:bg-[#5D4037] hover:scale-[1.03]"
@@ -306,11 +306,11 @@ const Result = () => {
                   {selectedProgram.label}
                 </h2>
                 {loadingProgram ? (
-                  <p className="text-xl italic text-[#6D4C41]">
+                  <p className="text-base sm:text-xl italic text-[#6D4C41]">
                     Loading description...
                   </p>
                 ) : (
-                  <p className="text-xl leading-relaxed text-[#4E342E]">
+                  <p className="text-base sm:text-xl leading-relaxed text-[#4E342E]">
                     {programDetails || 'No description available.'}
                   </p>
                 )}
@@ -324,4 +324,3 @@ const Result = () => {
 };
 
 export default Result;
-
