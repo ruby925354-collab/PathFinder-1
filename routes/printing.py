@@ -87,15 +87,17 @@ def get_user_report_data(user_id: int):
                 user_info.get("extension") or ""
             ]).strip()
 
-            # Get information_id
+            # 🆔 Fetch Information ID (12-digit padded)
             cursor.execute("""
-                SELECT information_id
+                SELECT information_id 
                 FROM information
                 WHERE user_id = %s
             """, (user_id,))
             info_row = cursor.fetchone()
-            
-            information_id = info_row["information_id"] if info_row else "N/A"
+
+            information_id = ""
+            if info_row:
+                information_id = str(info_row["information_id"]).zfill(12)
 
             # 🧩 2️⃣ Personality Scores
             cursor.execute("""
@@ -298,8 +300,7 @@ async def convert_to_pdf(file: UploadFile = File(...)):
         pdf_path = tmp_docx_path.replace(".docx", ".pdf")
 
         # ✅ Use the full path to soffice.exe
-        soffice_path = "/usr/bin/soffice"
-
+        soffice_path = r"C:\Program Files\LibreOffice\program\soffice.exe"
 
         result = subprocess.run(
             [
@@ -356,5 +357,3 @@ def get_information_user(information_id: int):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
