@@ -295,7 +295,7 @@ const FloatingChatbot: React.FC = () => {
 const COMMANDS = [
   { cmd: "/find", description: "Search user info by 12-digit ID" },
   { cmd: "/help", description: "Show help information" },
-  { cmd: "/reset", description: "Clear chat history" },
+  { cmd: "/me", description: "Search your own info about /me scholastic, /me knowledge, /me personality" },
 ];
 
 
@@ -316,7 +316,7 @@ const COMMANDS = [
       setAdminMessages(msgs);
       setAdminConversationId(res.data.conversation_id);
 
-      // 💾 Store last admin message id
+      // Store last admin message id
       lastAdminMsgIdRef.current =
         msgs.length > 0 ? msgs[msgs.length - 1].id : 0;
 
@@ -411,7 +411,7 @@ if (normalized.startsWith("/find ")) {
     }
 
     // Build scholastic records text
-let scholasticText = "\n **Scholastic Record:**\n";
+  let scholasticText = "📘 **Scholastic Record:**\n";
 
 let hasScholastic = false;
 
@@ -425,27 +425,27 @@ for (let i = 1; i <= 40; i++) {
 
   hasScholastic = true;
 
-  scholasticText += `\n\n• **${subj || "N/A"}** | Semester: ${sem || "N/A"} | Grade: ${grade || "N/A"}`;
+  scholasticText += `\n• **${subj || "N/A"}** | Semester: ${sem || "N/A"} | Grade: ${grade || "N/A"}`;
 }
 
 if (!hasScholastic) scholasticText += "\nNo scholastic data available.\n";
 
 // FINAL RESPONSE WITH SCHOLASTIC SECTION INCLUDED
 const responseText =
-  `📌 ##User Information Found##\n\n` +
-`##||Name: ${displayName}||##\n` +
-` \n##||Email: ${displayEmail}||##\n` +
-  ` \n##||Strand: ${data.strand || "N/A"}||##\n\n` +
-  `\n\n||**Personality Scores:**||\n` +
-  `\n##||R: ${data.r_score}| I: ${data.i_score}| A: ${data.a_score}| S: ${data.s_score}| E: ${data.e_score}| C: ${data.c_score}||##\n\n` +
-  `\n##||Knowledge Test Summary||##\n` +
-  `\n##Math: ${data.math_score}##\nEnglish: ${data.english_score}##\nScience: ${data.science_score}##\nFilipino: ${data.filipino_score}##\n
-  Logical Reasoning: ${data.lr_score}##\nReading Comprehension: ${data.rc_score}##\nTechnology: ${data.tech_score}##\nEngineering: ${data.engineer_score}##\n
-  Business: ${data.business_score}##\nManagement: ${data.manage_score}##\nHumanities: ${data.human_score}##\nAccountancy: ${data.acc_score}##\nSocial Science: ${data.ss_score}##\n` + 
-  `\n ||**Recommended Programs:**||\n` +
-  `\n##||1. ${data.program1}||##\n` +
-  `\n##||2. ${data.program2}||##\n` +
-  `\n##||3. ${data.program3}||##\n\n` +
+  `**User Information Found**\n\n` +
+` **Name:** ${displayName}\n` +
+` **Email:** ${displayEmail}\n` +
+  `**Strand:** ${data.strand || "N/A"}\n\n` +
+  `**Personality Scores:**\n` +
+  `R: ${data.r_score}, I: ${data.i_score}, A: ${data.a_score}, S: ${data.s_score}, E: ${data.e_score}, C: ${data.c_score}\n\n` +
+  `**Knowledge Test Summary:**\n` +
+  `Math: ${data.math_score}\nEnglish: ${data.english_score}\nScience: ${data.science_score}\nFilipino: ${data.filipino_score}\n
+  Logical Reasoning: ${data.lr_score}\nReading Comprehension: ${data.rc_score}\nTechnology: ${data.tech_score}\nEngineering: ${data.engineer_score}\n
+  Business: ${data.business_score}\nManagement: ${data.manage_score}\nHumanities: ${data.human_score}\nAccountancy: ${data.acc_score}\nSocial Science: ${data.ss_score}\n` + 
+  `**Recommended Programs:**\n` +
+  `1. ${data.program1}\n` +
+  `2. ${data.program2}\n` +
+  `3. ${data.program3}\n\n` +
   scholasticText;
 
 
@@ -476,9 +476,279 @@ const responseText =
 
   return; // stop execution
 }
+// ---------------------------------------------
+//  /me COMMAND (fetch current user's own data)
+// ---------------------------------------------
+if (normalized === "/me") {
+  try {
+    const myUserId = userId; // already stored in state / localStorage
 
+    if (!myUserId) {
+      setMessages(prev => [
+        ...prev,
+        { sender: "bot", text: "⚠️ You are not logged in." }
+      ]);
+      return;
+    }
 
+    // Step 1 — Fetch user report data
+    const reportRes = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/user/${myUserId}/report-data`
+    );
+    const data = reportRes.data;
 
+    // Step 2 — Fetch visibility
+    const visRes = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/user/${myUserId}/visibility`
+    );
+    const visibility = visRes.data.visibility;
+
+    const displayName = visibility === "private"
+      ? "*************"
+      : data.full_name;
+
+    const displayEmail = visibility === "private"
+      ? "*************"
+      : data.email;
+
+    // Scholastic Record
+    let scholasticText = "**Scholastic Record:**\n";
+    let hasScholastic = false;
+
+    for (let i = 1; i <= 40; i++) {
+      const subj = data[`subject${i}`];
+      const sem = data[`semester${i}`];
+      const grade = data[`grades${i}`];
+
+      if (!subj && !sem && !grade) continue;
+
+      hasScholastic = true;
+      scholasticText += `\n• **${subj || "N/A"}** | Semester: ${sem || "N/A"} | Grade: ${grade || "N/A"}`;
+    }
+
+    if (!hasScholastic) scholasticText += "\nNo scholastic data available.\n";
+
+    const responseText =
+      `**Your Profile Information**\n\n` +
+      `**Name:** ${displayName}\n` +
+      `**Email:** ${displayEmail}\n` +
+      `**Strand:** ${data.strand || "N/A"}\n\n` +
+      `**Personality Scores:**\n` +
+      `R: ${data.r_score}, I: ${data.i_score}, A: ${data.a_score}, S: ${data.s_score}, E: ${data.e_score}, C: ${data.c_score}\n\n` +
+      `**Knowledge Test Summary:**\n` +
+      `Math: ${data.math_score}\nEnglish: ${data.english_score}\nScience: ${data.science_score}\nFilipino: ${data.filipino_score}\n` +
+      `Logical Reasoning: ${data.lr_score}\nReading Comprehension: ${data.rc_score}\nTechnology: ${data.tech_score}\nEngineering: ${data.engineer_score}\n` +
+      `Business: ${data.business_score}\nManagement: ${data.manage_score}\nHumanities: ${data.human_score}\nAccountancy: ${data.acc_score}\nSocial Science: ${data.ss_score}\n\n` +
+      `**Recommended Programs:**\n` +
+      `1. ${data.program1}\n` +
+      `2. ${data.program2}\n` +
+      `3. ${data.program3}\n\n` +
+      scholasticText;
+
+    // Typing animation
+    if (activeChat === "bot") setIsSendingBot(false);
+
+    setIsBotTyping(true);
+    await new Promise(res => setTimeout(res, 5000));
+    setIsBotTyping(false);
+
+    setMessages(prev => [...prev, { sender: "bot", text: responseText }]);
+
+  } catch (err) {
+    setMessages(prev => [
+      ...prev,
+      { sender: "bot", text: "⚠️ Could not fetch your profile." }
+    ]);
+  }
+
+  return;
+}
+// ---------------------------------------------
+//  /me scholastic  (show only user's scholastic record)
+// ---------------------------------------------
+if (normalized === "/me scholastic") {
+  try {
+    const myUserId = userId;
+
+    if (!myUserId) {
+      setMessages(prev => [
+        ...prev, { sender: "bot", text: "⚠️ You are not logged in." }
+      ]);
+      return;
+    }
+
+    // Step 1 — fetch report data
+    const reportRes = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/user/${myUserId}/report-data`
+    );
+    const data = reportRes.data;
+
+    // Step 2 — visibility check
+    const visRes = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/user/${myUserId}/visibility`
+    );
+    const visibility = visRes.data.visibility;
+
+    const displayName = visibility === "private"
+      ? "*************"
+      : data.full_name;
+
+    // Build scholastic record
+    let scholasticText =
+      `📘 **Scholastic Record for ${displayName}**\n`;
+
+    let hasScholastic = false;
+
+    for (let i = 1; i <= 40; i++) {
+      const subj = data[`subject${i}`];
+      const sem = data[`semester${i}`];
+      const grade = data[`grades${i}`];
+
+      if (!subj && !sem && !grade) continue;
+
+      hasScholastic = true;
+      scholasticText += `\n• **${subj || "N/A"}** — Semester: ${sem || "N/A"}, Grade: ${grade || "N/A"}`;
+    }
+
+    if (!hasScholastic) {
+      scholasticText += "\n\nNo scholastic data available.";
+    }
+
+    // Typing animation
+    if (activeChat === "bot") setIsSendingBot(false);
+
+    setIsBotTyping(true);
+    await new Promise(res => setTimeout(res, 5000));
+    setIsBotTyping(false);
+
+    setMessages(prev => [...prev, { sender: "bot", text: scholasticText }]);
+
+  } catch (err) {
+    setMessages(prev => [
+      ...prev,
+      { sender: "bot", text: "⚠️ Could not fetch your scholastic record." }
+    ]);
+  }
+
+  return;
+}
+// ---------------------------------------------
+//  /me personality  (show only user's personality/RIASEC scores)
+// ---------------------------------------------
+if (normalized === "/me personality") {
+  try {
+    const myUserId = userId;
+
+    if (!myUserId) {
+      setMessages(prev => [
+        ...prev, { sender: "bot", text: "⚠️ You are not logged in." }
+      ]);
+      return;
+    }
+
+    // Fetch data
+    const reportRes = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/user/${myUserId}/report-data`
+    );
+    const data = reportRes.data;
+
+    const visRes = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/user/${myUserId}/visibility`
+    );
+    const visibility = visRes.data.visibility;
+
+    const displayName = visibility === "private"
+      ? "*************"
+      : data.full_name;
+
+    const responseText =
+      `**Personality Scores for ${displayName}**\n\n` +
+      `R (Realistic): ${data.r_score}\n` +
+      `I (Investigative): ${data.i_score}\n` +
+      `A (Artistic): ${data.a_score}\n` +
+      `S (Social): ${data.s_score}\n` +
+      `E (Enterprising): ${data.e_score}\n` +
+      `C (Conventional): ${data.c_score}`;
+
+    // Typing animation
+    if (activeChat === "bot") setIsSendingBot(false);
+    setIsBotTyping(true);
+    await new Promise(res => setTimeout(res, 5000));
+    setIsBotTyping(false);
+
+    setMessages(prev => [...prev, { sender: "bot", text: responseText }]);
+
+  } catch (err) {
+    setMessages(prev => [
+      ...prev,
+      { sender: "bot", text: "⚠️ Could not fetch your personality scores." }
+    ]);
+  }
+
+  return;
+}
+// ---------------------------------------------
+//  /me knowledge  (show only user's knowledge test scores)
+// ---------------------------------------------
+if (normalized === "/me knowledge") {
+  try {
+    const myUserId = userId;
+
+    if (!myUserId) {
+      setMessages(prev => [
+        ...prev, { sender: "bot", text: "⚠️ You are not logged in." }
+      ]);
+      return;
+    }
+
+    // Fetch data
+    const reportRes = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/user/${myUserId}/report-data`
+    );
+    const data = reportRes.data;
+
+    const visRes = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/user/${myUserId}/visibility`
+    );
+    const visibility = visRes.data.visibility;
+
+    const displayName = visibility === "private"
+      ? "*************"
+      : data.full_name;
+
+    const responseText =
+      `**Knowledge Test Scores for ${displayName}**\n\n` +
+      `Math: ${data.math_score}\n` +
+      `English: ${data.english_score}\n` +
+      `Science: ${data.science_score}\n` +
+      `Filipino: ${data.filipino_score}\n` +
+      `Logical Reasoning: ${data.lr_score}\n` +
+      `Reading Comprehension: ${data.rc_score}\n` +
+      `Technology: ${data.tech_score}\n` +
+      `Engineering: ${data.engineer_score}\n` +
+      `Business: ${data.business_score}\n` +
+      `Management: ${data.manage_score}\n` +
+      `Humanities: ${data.human_score}\n` +
+      `Accountancy: ${data.acc_score}\n` +
+      `Social Science: ${data.ss_score}`;
+
+    // Typing animation
+    if (activeChat === "bot") setIsSendingBot(false);
+    setIsBotTyping(true);
+    await new Promise(res => setTimeout(res, 5000));
+    setIsBotTyping(false);
+
+    setMessages(prev => [...prev, { sender: "bot", text: responseText }]);
+
+  } catch (err) {
+    setMessages(prev => [
+      ...prev,
+      { sender: "bot", text: "⚠️ Could not fetch your knowledge test scores." }
+    ]);
+  }
+
+  return;
+}
       
     if (normalized.includes("what is pathfinder" ) || normalized.includes("what's pathfinder") || normalized.includes("define pathfinder") 
       || normalized.includes("what pathfinder") || normalized.includes("explain pathfinder") || normalized.includes("tell me about pathfinder")
@@ -516,7 +786,7 @@ const responseText =
       }
     ];
 
-    // 🔍 Check each FAQ group
+    // Check each FAQ group
     for (const f of faq) {
       if (f.triggers.includes(normalized)) {
         const reply = f.reply;
@@ -934,6 +1204,3 @@ const responseText =
 
 
 export default Body;
-
-
-
