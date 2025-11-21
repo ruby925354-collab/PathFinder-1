@@ -13,8 +13,8 @@ import {
   FaGlobe,
 } from "react-icons/fa";
 import {
-  FaBars, FaHome, FaCoffee, FaCog, FaChevronDown, FaChevronUp, FaUser,
-  FaLaptopCode, FaBriefcase, FaCogs, FaDraftingCompass, FaStar, FaComments, FaSignOutAlt
+  FaBars, FaHome, FaComment, FaCog, FaChevronDown, FaChevronUp, FaUser, FaComments,
+  FaLaptopCode, FaBriefcase, FaCogs, FaDraftingCompass, FaStar, FaCoffee, FaSignOutAlt
 } from 'react-icons/fa';
 import Image from 'next/image';
 import Logo from '@/public/PATHFINDER-logo-edited.png';
@@ -35,6 +35,7 @@ ChartJS.register(
 );
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+// ⬆️ VERY TOP OF FILE
 
 interface UserItem {
   user_id: number;
@@ -46,6 +47,7 @@ interface ChatMessage {
   sender: string;
   text: string;
 }
+
 export default function AdminDashboard() {
   // 🟢 New state for Category Type selection
   const [activeCategoryType, setActiveCategoryType] = useState<string | null>(null);
@@ -184,7 +186,7 @@ export default function AdminDashboard() {
   const [loadingTopPrograms, setLoadingTopPrograms] = useState(true);
   // State and fetching logic
 
-const [loadingPrograms, setLoadingPrograms] = useState(true);
+  const [loadingPrograms, setLoadingPrograms] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [chatConversationId, setChatConversationId] = useState<number | null>(null);
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
@@ -202,6 +204,34 @@ const [loadingPrograms, setLoadingPrograms] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const lastMessageIdRef = useRef<number>(0);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  type TestStatsType = {
+    finished: { [month: number]: number };
+    unfinished: { [month: number]: number };
+  };
+
+  const [testStats, setTestStats] = useState<TestStatsType>({
+    finished: {},
+    unfinished: {}
+  });
+
+  const [loadingTestStats, setLoadingTestStats] = useState(true);
+
+
+  useEffect(() => {
+  const fetchTestStats = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/test-completion-stats`);
+      const data = await res.json();
+      setTestStats(data);
+    } catch (err) {
+      console.error("Failed to fetch test stats", err);
+    } finally {
+      setLoadingTestStats(false);
+    }
+  };
+
+  fetchTestStats();
+}, []);
 
   // AUTO SCROLL
   useEffect(() => {
@@ -259,23 +289,23 @@ const [loadingPrograms, setLoadingPrograms] = useState(true);
 
     return () => clearInterval(interval);
   }, [chatConversationId]);
- 
-  useEffect(() => {
-    const fetchTopPrograms = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/top-programs`);
-        if (!res.ok) throw new Error("Failed to fetch top programs");
-        const data = await res.json();
-        setTopPrograms(data);
-      } catch (error) {
-        console.error("Error fetching top programs:", error);
-      } finally {
-        setLoadingTopPrograms(false);
-      }
-    };
 
-    fetchTopPrograms();
-  }, []);
+  useEffect(() => {
+      const fetchTopPrograms = async () => {
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/top-programs`);
+          if (!res.ok) throw new Error("Failed to fetch top programs");
+          const data = await res.json();
+          setTopPrograms(data);
+        } catch (error) {
+          console.error("Error fetching top programs:", error);
+        } finally {
+          setLoadingTopPrograms(false);
+        }
+      };
+
+      fetchTopPrograms();
+    }, []);
 
   useEffect(() => {
     const fetchTopStrands = async () => {
@@ -304,7 +334,9 @@ const [loadingPrograms, setLoadingPrograms] = useState(true);
     };
     fetchUserTimeline();
   }, []);
+
   
+
   // OPEN A CONVERSATION
   const openConversation = async (conversationId: number, userId: number) => {
     setSelectedUser(userId);
@@ -358,6 +390,7 @@ const [loadingPrograms, setLoadingPrograms] = useState(true);
 
     setIsSending(false);
   };
+
 
   const totalUsersData = {
     labels: userTimeline.map((d) => d.date),
@@ -455,23 +488,30 @@ const [loadingPrograms, setLoadingPrograms] = useState(true);
     maintainAspectRatio: false, // Allow resizing
   };
 
+ const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul",
+                     "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  const finishedData = monthLabels.map((_, i) => (testStats.finished?.[i + 1] ?? 0));
+  const unfinishedData = monthLabels.map((_, i) => (testStats.unfinished?.[i + 1] ?? 0));
+
   const stackedLineData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'], // Example months
+    labels: monthLabels,
     datasets: [
       {
         label: 'Finished Tests',
-        data: [30, 80, 60, 90, 70],
+        data: finishedData,
         borderColor: '#6F4E37',
         backgroundColor: '#6F4E37',
       },
       {
         label: 'Unfinished Tests',
-        data: [80, 40, 70, 70, 40],
+        data: unfinishedData,
         borderColor: '#A67B5B',
         backgroundColor: '#A67B5B',
       },
     ],
   };
+
 
   const stackedLineOptions = {
     plugins: {
@@ -2048,8 +2088,12 @@ const [loadingPrograms, setLoadingPrograms] = useState(true);
       {/* Stacked Line Graph */}
       <div className="bg-brown-1 p-3 rounded-lg shadow-lg col-span-7">
         <h2 className="text-base font-bold mb-3 text-black">Test Completion</h2>
-        <div className="h-52">
-          <Line data={stackedLineData} options={stackedLineOptions} />
+        <div className="h-52 flex justify-center items-center">
+          {loadingTestStats ? (
+            <p className="text-gray-600 italic">Loading test completion...</p>
+          ) : (
+            <Line data={stackedLineData} options={stackedLineOptions} />
+          )}
         </div>
       </div>
       {/* Total Users */}
@@ -3844,7 +3888,7 @@ const [loadingPrograms, setLoadingPrograms] = useState(true);
             </div>
           </div>
         );
-     case "Chats":
+      case "Chats":
         return (
           <div className="w-full h-full flex bg-[#f6f0e9]">
 
@@ -4042,7 +4086,7 @@ const [loadingPrograms, setLoadingPrograms] = useState(true);
               } w-full`}
             >
               <FaComments size={20} /> {/* Changed icon to FaFileAlt */}
-              {isSidebarOpen && <span className="ml-4 text-left">Chat History</span>}
+              {isSidebarOpen && <span className="ml-4 text-left">Chats</span>}
             </div>
           </li>
           <li
@@ -4191,10 +4235,4 @@ const [loadingPrograms, setLoadingPrograms] = useState(true);
     </div>
   );
 }
-
-
-
-
-
-
 
