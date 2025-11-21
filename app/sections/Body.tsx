@@ -294,7 +294,6 @@ const FloatingChatbot: React.FC = () => {
 
 const COMMANDS = [
   { cmd: "/find", description: "Search user info by 12-digit ID" },
-  { cmd: "/help", description: "Show help information" },
   { cmd: "/me", description: "Search your own info about /me scholastic, /me knowledge, /me personality" },
 ];
 
@@ -1204,3 +1203,4 @@ if (normalized === "/me knowledge") {
 
 
 export default Body;
+
