@@ -358,6 +358,53 @@ def get_registered_users():
             detail=f"Failed to fetch registered users: {str(e)}"
         )
 
+# ---------------- TEST COMPLETION STATS ----------------
+@app.get("/api/test-completion-stats")
+def get_test_completion_stats():
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+
+            # FINISHED USERS (Those with at least one recommended program)
+            cursor.execute("""
+                SELECT 
+                    MONTH(created_timestamp) AS month,
+                    COUNT(DISTINCT user_id) AS finished
+                FROM user_recommended_program
+                GROUP BY MONTH(created_timestamp)
+                ORDER BY MONTH(created_timestamp)
+            """)
+            finished_rows = cursor.fetchall()
+
+            # UNFINISHED USERS (Started test but no recommended program)
+            cursor.execute("""
+                SELECT 
+                    MONTH(a.created_timestamp) AS month,
+                    COUNT(DISTINCT u.user_id) AS unfinished
+                FROM user_information u
+                LEFT JOIN access_information a 
+                    ON u.user_id = a.user_id
+                LEFT JOIN user_recommended_program urp 
+                    ON u.user_id = urp.user_id
+                LEFT JOIN user_scholastic_knowledge_test sk 
+                    ON u.user_id = sk.user_id
+                LEFT JOIN user_personality_test pt
+                    ON u.user_id = pt.user_id
+                WHERE 
+                    urp.user_id IS NULL
+                    AND (sk.user_id IS NOT NULL OR pt.user_id IS NOT NULL)
+                GROUP BY MONTH(a.created_timestamp)
+                ORDER BY MONTH(a.created_timestamp)
+            """)
+            unfinished_rows = cursor.fetchall()
+
+            return {
+                "finished": {row["month"]: row["finished"] for row in finished_rows},
+                "unfinished": {row["month"]: row["unfinished"] for row in unfinished_rows},
+            }
+
+    except Exception as e:
+        raise HTTPException(500, f"Error fetching test stats: {str(e)}")
 
 
 @app.post("/api/request-password-reset")
@@ -2729,6 +2776,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
