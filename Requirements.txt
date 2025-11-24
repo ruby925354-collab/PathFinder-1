@@ -19,6 +19,7 @@ networkx
 sendgrid
 httpx
 httpx[http2]
+openpyxl
 
 
 
