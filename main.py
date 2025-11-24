@@ -56,6 +56,7 @@ from routes import knowledge
 from routes import feedback
 from routes import printing
 from routes import gateway
+from routes import import_questions
 from routes.admin_chat import router as AdminChatRouter
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -120,6 +121,7 @@ app.include_router(scholastic.router)
 app.include_router(knowledge.router)
 app.include_router(feedback.router)
 app.include_router(printing.router)
+app.include_router(import_questions.router)
 app.include_router(gateway.router, prefix="/api")
 app.include_router(AdminChatRouter, prefix="/admin-chat")
   # ✅ ensures /generate exists
@@ -2776,6 +2778,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
