@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from '@/app/context/AuthContext';
 import { useRouter } from 'next/navigation';
+import { AxiosError } from "axios";
 import {
   FaChartLine,
   FaUtensils,
@@ -69,6 +70,7 @@ export default function AdminDashboard() {
   const [loadingFeedback, setLoadingFeedback] = useState(true);
   const router = useRouter();
   const { logout } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
   const [registeredUsers, setRegisteredUsers] = useState<
     {
       user_id: number;
@@ -93,6 +95,9 @@ export default function AdminDashboard() {
   // ------------------ 🧠 STATE VARIABLES ------------------
   const [originalOption, setOriginalOption] = useState(''); // option before edit
   const [updatedOption, setUpdatedOption] = useState('');   // new option value
+  const [isImporting, setIsImporting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
 
   // consistent hook order
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
@@ -215,6 +220,8 @@ export default function AdminDashboard() {
   });
 
   const [loadingTestStats, setLoadingTestStats] = useState(true);
+  const [selectedKnowledgeExcel, setSelectedKnowledgeExcel] = useState<File | null>(null);
+
 
 
   useEffect(() => {
@@ -569,14 +576,14 @@ export default function AdminDashboard() {
         if (res.data.success && Array.isArray(res.data.feedback)) {
           const feedbackList: FeedbackEntry[] = res.data.feedback;
 
-          // 🧮 Count number of ratings for each star (1–5)
+          // Count number of ratings for each star (1–5)
           const counts = [1, 2, 3, 4, 5].map(
             (rating) => feedbackList.filter((f: FeedbackEntry) => f.rating === rating).length
           );
 
           setFeedbackChartData(counts);
         } else {
-          console.warn("⚠️ Unexpected feedback API response:", res.data);
+          console.warn("Unexpected feedback API response:", res.data);
         }
       } catch (err) {
         console.error("❌ Failed to load feedback chart data:", err);
@@ -669,16 +676,19 @@ export default function AdminDashboard() {
           const key = `${q.knowledge_type} - ${q.category}`;
           if (!categorizedData[key]) categorizedData[key] = [];
 
-         categorizedData[key].push({
-          id: q.knowledge_id,
-          text: q.question,
-          options: q.options || [],
-          correctAnswer: q.answer,
-          knowledge_type: q.knowledge_type,
-          category: q.category,
-          category_type: q.category_type,
-          timer: Number(q.timer) ?? 60, // ✅ make sure it's a number
-        });
+          // Prevent duplicate questions inside a category list
+          if (!categorizedData[key].some(item => item.id === q.knowledge_id)) {
+            categorizedData[key].push({
+              id: q.knowledge_id,
+              text: q.question,
+              options: q.options || [],
+              correctAnswer: q.answer,
+              knowledge_type: q.knowledge_type,
+              category: q.category,
+              category_type: q.category_type,
+              timer: Number(q.timer) ?? 60,
+            });
+          }
 
         console.log(`Loaded ${q.question}: timer=${q.timer}`);
         });
@@ -843,6 +853,42 @@ export default function AdminDashboard() {
     setEditingIndex(null);
     setEditedQuestion('');
   };
+  const refreshKnowledgeData = async () => {
+    const refreshed = await axios.get(`${API_BASE_URL}/api/knowledge-questions`);
+    const data = refreshed.data;
+
+    const categorizedData: Record<
+      string,
+      {
+        id: number;
+        text: string;
+        options: string[];
+        correctAnswer: string;
+        knowledge_type: string;
+        category: string;
+        category_type: string;
+        timer: number;
+      }[]
+    > = {};
+
+    data.forEach((q: any) => {
+      const key = `${q.knowledge_type} - ${q.category}`;
+      if (!categorizedData[key]) categorizedData[key] = [];
+
+      categorizedData[key].push({
+        id: q.knowledge_id,
+        text: q.question,
+        options: q.options || [],
+        correctAnswer: q.answer,
+        knowledge_type: q.knowledge_type,
+        category: q.category,
+        category_type: q.category_type,
+        timer: Number(q.timer) ?? 60,
+      });
+    });
+
+    setKnowledgeTestQuestions(categorizedData);
+  };
 
   const handleAddKnowledgeQuestion = async () => {
     if (!activeKnowledgeCategory) return;
@@ -898,21 +944,24 @@ export default function AdminDashboard() {
         const key = `${q.knowledge_type} - ${q.category}`;
         if (!categorizedData[key]) categorizedData[key] = [];
 
-        categorizedData[key].push({
-          id: q.knowledge_id,
-          text: q.question,
-          options: q.options || [],
-          correctAnswer: q.answer,
-          knowledge_type: q.knowledge_type,
-          category: q.category,
-          category_type: q.category_type, // 🟢 include this
-          timer: q.timer,
-        });
+        // Prevent duplicate questions inside a category list
+        if (!categorizedData[key].some(item => item.id === q.knowledge_id)) {
+          categorizedData[key].push({
+            id: q.knowledge_id,
+            text: q.question,
+            options: q.options || [],
+            correctAnswer: q.answer,
+            knowledge_type: q.knowledge_type,
+            category: q.category,
+            category_type: q.category_type,
+            timer: Number(q.timer) ?? 60,
+          });
+        }
 
       });
 
       // Update UI
-      setKnowledgeTestQuestions(categorizedData);
+      await refreshKnowledgeData();
       setNewKnowledgeQuestion("");
       setNewKnowledgeOptions(["", "", "", ""]);
       setNewKnowledgeCorrectAnswer("");
@@ -933,7 +982,15 @@ export default function AdminDashboard() {
 
   // 🧩 Handle when user clicks "Edit" on a question
   const handleEditKnowledgeQuestion = (category: string, index: number) => {
-    const question = knowledgeTestQuestions[category][index];
+    const filteredQuestions =
+      knowledgeTestQuestions[category]?.filter(
+        (q) =>
+          q.knowledge_type === activeKnowledgeType &&
+          q.category_type === activeCategoryType
+      ) || [];
+
+    const question = filteredQuestions[index];
+
     console.log("🧠 Editing question:", question);
 
     setActiveKnowledgeCategory(category);
@@ -954,59 +1011,58 @@ export default function AdminDashboard() {
   };
 
   
-  // 💾 Save edited question or option
   const handleSaveKnowledgeEdit = async () => {
-    if (!activeKnowledgeCategory || editingKnowledgeIndex === null) return;
-    setIsSaving(true);
-    try {
-      const questionToEdit = knowledgeTestQuestions[activeKnowledgeCategory][editingKnowledgeIndex];
+  if (!activeKnowledgeCategory || editingKnowledgeIndex === null) return;
+  setIsSaving(true);
 
-      // Prepare updated local question object
-      const updatedQuestion = {
-        ...questionToEdit,
-        text: editedKnowledgeQuestion,
-        options: editedKnowledgeOptions.map((opt) =>
-          opt === originalOption ? updatedOption : opt
-        ),
-        correctAnswer: editedKnowledgeCorrectAnswer,
-        timer: editedKnowledgeTimer, // ✅ include timer
-      };
+  try {
+    const filteredQuestions =
+      knowledgeTestQuestions[activeKnowledgeCategory]?.filter(
+        (q) =>
+          q.knowledge_type === activeKnowledgeType &&
+          q.category_type === activeCategoryType
+      ) || [];
 
-      try {
-        await axios.put(`${API_BASE_URL}/api/knowledge-questions/${questionToEdit.id}`, {
-          question: editedKnowledgeQuestion,
-          answer: editedKnowledgeCorrectAnswer,
-          old_option: originalOption || null,
-          new_option: updatedOption || null,
-          timer: editedKnowledgeTimer,
-        });
+    const questionToEdit = filteredQuestions[editingKnowledgeIndex];
 
-        // Update frontend state
-        setKnowledgeTestQuestions((prev) => ({
-          ...prev,
-          [activeKnowledgeCategory]: prev[activeKnowledgeCategory].map((q, index) =>
-            index === editingKnowledgeIndex ? updatedQuestion : q
-          ),
-        }));
+    const finalOptions = editedKnowledgeOptions.map((opt) =>
+      opt === originalOption ? updatedOption : opt
+    );
 
-        // Reset everything
-        setEditingKnowledgeIndex(null);
-        setEditedKnowledgeQuestion('');
-        setEditedKnowledgeOptions(['']);
-        setEditedKnowledgeCorrectAnswer('');
-        setEditedKnowledgeTimer(0); // ✅ reset timer field
-        setOriginalOption('');
-        setUpdatedOption('');
-
-        alert('Question updated successfully!');
-      } catch (error) {
-        console.error('Failed to update question:', error);
-        alert('Failed to update question. Please try again.');
+    // 🟢 UPDATE BACKEND
+    await axios.put(
+      `${API_BASE_URL}/api/knowledge-questions/${questionToEdit.id}`,
+      {
+        knowledge_type: activeKnowledgeType,
+        category: activeKnowledgeCategory.split(" - ")[1],
+        category_type: activeCategoryType,
+        question: editedKnowledgeQuestion,
+        answer: editedKnowledgeCorrectAnswer,
+        options: finalOptions,
+        timer: editedKnowledgeTimer,
       }
-    } finally {
-      setIsSaving(false);
-    }
-  };
+    );
+
+    // 🟢 NOW REFRESH THE ENTIRE KNOWLEDGE DATA
+    await refreshKnowledgeData(); // <---- REQUIRED
+
+    // 🧹 Reset UI
+    setEditingKnowledgeIndex(null);
+    setEditedKnowledgeQuestion("");
+    setEditedKnowledgeOptions([]);
+    setEditedKnowledgeCorrectAnswer("");
+    setEditedKnowledgeTimer(0);
+    setOriginalOption("");
+    setUpdatedOption("");
+
+    alert("Question updated successfully!");
+  } catch (error) {
+    console.error("Failed to update question:", error);
+    alert("Failed to update question. Please try again.");
+  } finally {
+    setIsSaving(false);
+  }
+};
 
 
   const handleConfirmSaveKnowledgeEdit = () => {
@@ -1015,24 +1071,59 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteKnowledgeQuestion = async (index: number) => {
-    if (!activeKnowledgeCategory) return;
-    const questionToDelete = knowledgeTestQuestions[activeKnowledgeCategory][index];
+    if (!activeKnowledgeCategory || !activeCategoryType) return;
+
+    const filteredQuestions =
+      knowledgeTestQuestions[activeKnowledgeCategory]?.filter(
+        (q) =>
+          q.knowledge_type === activeKnowledgeType &&
+          q.category_type === activeCategoryType
+      ) || [];
+
+    const questionToDelete = filteredQuestions[index];
+
+    if (!questionToDelete) {
+      console.error("❌ Could not find question for deletion, index invalid.");
+      return;
+    }
+
     try {
-      await axios.delete(`${API_BASE_URL}/api/knowledge-questions?id=${questionToDelete.id}`);
-      setKnowledgeTestQuestions((prev) => ({
-        ...prev,
-        [activeKnowledgeCategory]: prev[activeKnowledgeCategory].filter((_, i) => i !== index),
-      }));
+      setIsDeleting(true); // ⬅️ disable delete button
+
+      await axios.delete(
+        `${API_BASE_URL}/api/knowledge-questions?id=${questionToDelete.id}`
+      );
+
+      setKnowledgeTestQuestions((prev) => {
+        const updated = { ...prev };
+        updated[activeKnowledgeCategory] = updated[activeKnowledgeCategory].filter(
+          (q) => q.id !== questionToDelete.id
+        );
+        return updated;
+      });
+
+      // Reset UI
+      setEditingKnowledgeIndex(null);
+      setEditedKnowledgeQuestion("");
+      setEditedKnowledgeOptions([]);
+      setEditedKnowledgeCorrectAnswer("");
+      setEditedKnowledgeTimer(0);
+      setOriginalOption("");
+      setUpdatedOption("");
+
+      console.log("🗑 Successfully deleted:", questionToDelete.id);
     } catch (error) {
-      console.error('Failed to delete question:', error);
+      console.error("❌ Failed to delete question:", error);
+    } finally {
+      setIsDeleting(false); // ⬅️ re-enable delete button
     }
   };
 
   const handleConfirmDeleteKnowledgeQuestion = (index: number) => {
     handleDeleteKnowledgeQuestion(index);
-    setEditingKnowledgeIndex(null); // Close the edit form
-    closeConfirmModal(); // Close the confirmation modal
+    closeConfirmModal();
   };
+  
 
   const handleAddSubject = (e: React.FormEvent) => {
     e.preventDefault(); // Prevent page refresh
@@ -1249,25 +1340,103 @@ export default function AdminDashboard() {
     </div>
   );
 
+  const handleSelectKnowledgeExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setSelectedKnowledgeExcel(file);
+  };
+ const handleImportKnowledgeExcel = async () => {
+    if (!selectedKnowledgeExcel) {
+      alert("Please select a file first.");
+      return;
+    }
+
+    setIsImporting(true);  // ⬅️ disable button
+
+    const formData = new FormData();
+    formData.append("file", selectedKnowledgeExcel);
+
+    try {
+      const res = await axios.post(
+        `${API_BASE_URL}/api/knowledge-questions/import-excel`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+
+      if (res.data.status === "error") {
+        alert(res.data.message);
+        return;
+      }
+
+      alert("Excel imported successfully!");
+    } catch (err: unknown) {
+      let backendError = "Import failed. Please check your file format.";
+
+      if (axios.isAxiosError(err)) {
+        backendError =
+          err.response?.data?.detail?.message ??
+          err.response?.data?.message ??
+          backendError;
+      }
+
+      alert(backendError);
+    } finally {
+      setIsImporting(false); // ⬅️ re-enable button
+    }
+  };
+
   const renderKnowledgeTestContent = () => {
     if (!activeKnowledgeType) {
-      // Step 1: Show General and Specific Knowledge buttons
       return (
         <div className="flex flex-col items-center min-h-screen px-8">
-          <h1 className="text-3xl font-bold mt-4 mb-8 text-center text-black">
+          <h1 className="text-3xl font-bold mt-4 mb-4 text-center text-black">
             Select Knowledge Type
           </h1>
+
+          {/* ✅ IMPORT EXCEL BUTTON ADDED HERE */}
+          <div className="mb-6">
+          <div className="mb-6 flex flex-col items-center">
+            <input
+              type="file"
+              accept=".xlsx"
+              onChange={handleSelectKnowledgeExcel}
+              className="bg-brown-6 text-white rounded-lg p-3 shadow cursor-pointer 
+                        hover:bg-brown-700 hover:scale-95 transition-transform w-56"
+            />
+            <button
+              onClick={handleImportKnowledgeExcel}
+              disabled={isImporting}
+              className={`mt-3 rounded-lg p-2 shadow w-56 text-white ${
+                isImporting
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-brown-6 hover:bg-brown-700 hover:scale-95 transition-transform"
+              }`}
+            >
+              {isImporting ? "Importing..." : "Import"}
+            </button>
+
+            <p className="text-sm text-black mt-2 text-center">
+              Select a file, then click Import
+            </p>
+          </div>
+          </div>
+          {/* END IMPORT BUTTON */}
+
           <form className="bg-brown-1 p-6 rounded-lg shadow-lg">
             <div className="grid grid-cols-2 gap-6">
               <button
                 onClick={() => setActiveKnowledgeType('General Knowledge')}
-                className="bg-brown-6 text-white rounded-lg w-40 h-40 shadow-lg hover:bg-brown-700 flex items-center justify-center text-lg font-bold hover:scale-95 transition-transform duration-300 transform-gpu"
+                className="bg-brown-6 text-white rounded-lg w-40 h-40 shadow-lg hover:bg-brown-700 
+                          flex items-center justify-center text-lg font-bold 
+                          hover:scale-95 transition-transform duration-300 transform-gpu"
               >
                 General Knowledge
               </button>
+
               <button
                 onClick={() => setActiveKnowledgeType('Specific Knowledge')}
-                className="bg-brown-6 text-white rounded-lg w-40 h-40 shadow-lg hover:bg-brown-700 flex items-center justify-center text-lg font-bold hover:scale-95 transition-transform duration-300 transform-gpu"
+                className="bg-brown-6 text-white rounded-lg w-40 h-40 shadow-lg hover:bg-brown-700 
+                          flex items-center justify-center text-lg font-bold 
+                          hover:scale-95 transition-transform duration-300 transform-gpu"
               >
                 Specific Knowledge
               </button>
@@ -1393,7 +1562,7 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-10 gap-4 mb-1">
               {filteredQuestions.map((question, index) => (
                 <button
-                key={question.id}
+                  key={`${question.id}-${index}`}
                 onClick={(event) => {
                   event.preventDefault();
                   setEditingKnowledgeIndex(index);
@@ -1593,19 +1762,25 @@ export default function AdminDashboard() {
                   />
                 </div>
                 <div className="flex justify-end gap-3">
-                <button
-                    onClick={() => openConfirmModal(() => handleConfirmDeleteKnowledgeQuestion(editingKnowledgeIndex))}
-                    className="btn btn-danger border-brown-6 bg-transparent text-black rounded px-5 py-2 hover:bg-brown-700 hover:text-white hover:border-brown-700 hover:scale-95 transition-transform duration-300 transform-gpu"
+                  <button
+                    onClick={() =>
+                      !isDeleting &&
+                      openConfirmModal(() => handleConfirmDeleteKnowledgeQuestion(editingKnowledgeIndex))
+                    }
+                    disabled={isDeleting}
+                    className={`btn btn-danger border-brown-6 bg-transparent rounded px-5 py-2 
+                      ${isDeleting ? "cursor-not-allowed bg-gray-400 text-white" : "text-black hover:bg-brown-700 hover:text-white hover:border-brown-700 hover:scale-95"}
+                      transition-transform duration-300 transform-gpu`}
                     style={{
-                      height: '35px',
-                      width: '80px',
-                      minHeight: '10px',
-                      maxHeight: '50px',
-                      padding: '0 10px',
-                      lineHeight: '25px',
+                      height: "35px",
+                      width: "80px",
+                      minHeight: "10px",
+                      maxHeight: "50px",
+                      padding: "0 10px",
+                      lineHeight: "25px",
                     }}
                   >
-                    Delete
+                    {isDeleting ? "Deleting..." : "Delete"}
                   </button>
                   <button
                     onClick={() => openConfirmModal(handleConfirmSaveKnowledgeEdit)}
