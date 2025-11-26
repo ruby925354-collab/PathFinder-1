@@ -2649,66 +2649,115 @@ def get_program_details(program_name: str):
     except Exception as e:
         print("❌ ERROR fetching program details:", e)
         raise HTTPException(status_code=500, detail=f"Failed to fetch program details: {e}")
+        
 
+ABSTRACT_API_KEY = "9c222d82f4324ceaa406b01d7e8502d8"
 
-
-
-
-ZERBOUNCE_API_KEY = "c5ba213f89064f339d67b5a3035f34e8"
 @app.get("/api/validate-email")
 def validate_email(email: str):
     """
-    Validate email existence using ZeroBounce (single email endpoint).
+    Validate email using AbstractAPI Email Reputation
+    and transform fields to match the frontend.
     """
     try:
-        url = "https://api.zerobounce.net/v2/validate"
+        url = "https://emailreputation.abstractapi.com/v1/"
         params = {
-            "api_key": ZERBOUNCE_API_KEY,
-            "email": email,
+            "api_key": ABSTRACT_API_KEY,
+            "email": email
         }
-        resp = requests.get(url, params=params, timeout=10)
 
-        print("ZeroBounce raw response:", resp.status_code, resp.text)
+        resp = requests.get(url, params=params, timeout=10)
+        print("AbstractAPI raw:", resp.status_code, resp.text)
 
         if resp.status_code != 200:
             raise HTTPException(status_code=resp.status_code, detail=resp.text)
 
         data = resp.json()
 
-        if "error" in data:
-            raise HTTPException(status_code=400, detail=data["error"])
+        # Extract root sections
+        quality = data.get("email_quality", {})
+        syntax = data.get("email_syntax", {})
+        risk = data.get("email_risk", {})
 
+        # Map fields to what your frontend expects
         return {
-            "status": data.get("status"),
-            "sub_status": data.get("sub_status"),
-            "free_email": data.get("free_email"),
-            "did_you_mean": data.get("did_you_mean"),
-            "account": data.get("account"),
+            # FRONTEND expects: true/false
+            "is_valid_format": syntax.get("is_valid_syntax", True),
+
+            "is_free_email": quality.get("is_free_email", False),
+            "is_disposable_email": quality.get("is_disposable", False),
+
+            # Missing field → derive from risk status
+            "is_malicious": risk.get("address_risk_status") in ["high", "suspicious"],
+
+            # Reputation API does NOT check MX, so always true
+            "domain_exists": syntax.get("is_valid_syntax", True),
+
+            # Reputation API does NOT check SMTP → assume true
+            "smtp_valid": True,
+
+            # Quality score
+            "quality_score": float(quality.get("score", 0)),
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
 
+# ZERBOUNCE_API_KEY = "c5ba213f89064f339d67b5a3035f34e8"
+# @app.get("/api/validate-email")
+# def validate_email(email: str):
+#     """
+#     Validate email existence using ZeroBounce (single email endpoint).
+#     """
+#     try:
+#         url = "https://api.zerobounce.net/v2/validate"
+#         params = {
+#             "api_key": ZERBOUNCE_API_KEY,
+#             "email": email,
+#         }
+#         resp = requests.get(url, params=params, timeout=10)
 
-@app.get("/api/zero-usage")
-def zero_usage():
-    """
-    Get API credit usage from ZeroBounce.
-    """
-    try:
-        url = "https://api.zerobounce.net/v2/getapiusage"
-        params = {"api_key": ZERBOUNCE_API_KEY}
-        resp = requests.get(url, params=params, timeout=10)
+#         print("ZeroBounce raw response:", resp.status_code, resp.text)
 
-        print("ZeroBounce usage response:", resp.status_code, resp.text)
+#         if resp.status_code != 200:
+#             raise HTTPException(status_code=resp.status_code, detail=resp.text)
 
-        if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=resp.text)
+#         data = resp.json()
 
-        return resp.json()
+#         if "error" in data:
+#             raise HTTPException(status_code=400, detail=data["error"])
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Usage check failed: {str(e)}")
+#         return {
+#             "status": data.get("status"),
+#             "sub_status": data.get("sub_status"),
+#             "free_email": data.get("free_email"),
+#             "did_you_mean": data.get("did_you_mean"),
+#             "account": data.get("account"),
+#         }
+
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+
+
+# @app.get("/api/zero-usage")
+# def zero_usage():
+#     """
+#     Get API credit usage from ZeroBounce.
+#     """
+#     try:
+#         url = "https://api.zerobounce.net/v2/getapiusage"
+#         params = {"api_key": ZERBOUNCE_API_KEY}
+#         resp = requests.get(url, params=params, timeout=10)
+
+#         print("ZeroBounce usage response:", resp.status_code, resp.text)
+
+#         if resp.status_code != 200:
+#             raise HTTPException(status_code=resp.status_code, detail=resp.text)
+
+#         return resp.json()
+
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Usage check failed: {str(e)}")
     
 # ---------- Root ----------
 @app.get("/")
@@ -2787,6 +2836,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
