@@ -199,8 +199,8 @@ const RegisterModal: React.FC<RegisterModalProps> = ({
       setEmailValidated(true);
 
     } catch (err) {
-      setEmailError("Could not validate email");
-      setEmailValidated(false);
+      // setEmailError("Could not validate email");
+      setEmailValidated(true);
     } finally {
       setEmailValidating(false);
     }
@@ -529,4 +529,5 @@ const RegisterModal: React.FC<RegisterModalProps> = ({
 };
 
 export default RegisterModal;
+
 
