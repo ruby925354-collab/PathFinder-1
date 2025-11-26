@@ -47,6 +47,7 @@ const RegisterModal: React.FC<RegisterModalProps> = ({
     special: false,
     minLength: false,
   });
+  const [showSpamModal, setShowSpamModal] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -155,11 +156,11 @@ const RegisterModal: React.FC<RegisterModalProps> = ({
       setEmailError('');
       setEmailValidated(true);
     } finally {
-      setEmailValidating(true);
+      setEmailValidating(false);
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+ const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (emailError || passwordMatchError || isRegisterLoading || !emailValidated) return;
 
@@ -189,6 +190,12 @@ const RegisterModal: React.FC<RegisterModalProps> = ({
         setIsRegisterLoading(false);
         return;
       }
+
+      // ✅ ADD THIS PART
+      alert(
+        "We've sent an OTP to your email.\n\n" +
+        "!!!please check your Spam or Junk folder if not found!!!"
+      );
 
       onClose();
       onSwitchToOTP(email);
