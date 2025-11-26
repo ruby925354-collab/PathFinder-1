@@ -2140,6 +2140,7 @@ def compute_user_scholastic_knowledge(user_id: int):
                 FROM scholastic_categories sc
                 JOIN user_scholastic_record usr ON usr.scholastic_id = sc.scholastic_id
                 WHERE usr.user_id = %s
+                  AND usr.grade_level = 'Grade 12'
                 GROUP BY sc.category
             """, (user_id,))
             scholastic_data = {r["category"]: float(r["scholastic_avg"] or 0) for r in cursor.fetchall()}
@@ -2786,6 +2787,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
