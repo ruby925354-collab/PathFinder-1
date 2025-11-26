@@ -159,6 +159,17 @@ const Page = () => {
   };
 
   const handleBack = () => {
+    // 🔒 User has already submitted → restrict "Back"
+    if (locked) {
+      // Allowed: Sem 2 → Sem 1
+      if (semester === 2) {
+        setSemester(1);
+      }
+      // Not allowed: Sem 1 → Strand selection
+      return;
+    }
+
+    // Normal behavior (user not locked)
     if (semester === 2) {
       setSemester(1);
     } else {
@@ -354,13 +365,17 @@ const Page = () => {
           </div>
 
           <div className="flex items-center gap-4">
-            <button
-              onClick={handleBack}
-              className="px-6 py-3 border rounded-xl font-semibold transition-all duration-300
-                border-[#7B4F2C] text-[#7B4F2C] hover:bg-[#7B4F2C] hover:text-white"
-            >
-              ← Back
-            </button>
+          <button
+            onClick={handleBack}
+            disabled={locked && semester === 1}
+            className={`px-6 py-3 border rounded-xl font-semibold transition-all duration-300
+              ${locked && semester === 1
+                ? "border-gray-400 text-gray-400 cursor-not-allowed"
+                : "border-[#7B4F2C] text-[#7B4F2C] hover:bg-[#7B4F2C] hover:text-white"
+              }`}
+          >
+            ← Back
+          </button>
 
             <button
               onClick={() => {
