@@ -126,8 +126,7 @@ const RegisterModal: React.FC<RegisterModalProps> = ({
     setPasswordMatchError(value && value !== passwordValue ? 'Passwords do not match' : '');
   };
 
-  // ✅ Check email only when clicking "Check Email"
-  const checkEmailManually = async () => {
+    const checkEmailManually = async () => {
     if (!email) {
       setEmailError('Please enter an email');
       return;
@@ -144,22 +143,68 @@ const RegisterModal: React.FC<RegisterModalProps> = ({
       const apiBase = process.env.NEXT_PUBLIC_API_URL;
       const res = await axios.get(`${apiBase}/api/validate-email`, { params: { email } });
 
-      if (res.data.status !== 'valid') {
-        setEmailError('This email does not appear to be valid');
-        setEmailValidated(true);
-      } else {
-        setEmailError('');
-        setEmailValidated(true);
+      const data = res.data;
+
+      const isValidFormat = data.is_valid_format;
+      const isDisposable = data.is_disposable_email;
+      const isMalicious = data.is_malicious;
+      const domainExists = data.domain_exists;
+      const smtpValid = data.smtp_valid;
+      const score = parseFloat(data.quality_score || "0");
+
+      // ❌ Invalid format
+      if (!isValidFormat) {
+        setEmailError("Invalid email format.");
+        setEmailValidated(false);
+        return;
       }
-    } catch {
-      // setEmailError('Could not validate email');
-      setEmailError('');
+
+      // ❌ Disposable email
+      if (isDisposable) {
+        setEmailError("Disposable or temporary emails are not allowed.");
+        setEmailValidated(false);
+        return;
+      }
+
+      // ❌ Malicious / dangerous email
+      if (isMalicious) {
+        setEmailError("This email is identified as malicious.");
+        setEmailValidated(false);
+        return;
+      }
+
+      // ❌ Domain does not exist
+      if (!domainExists) {
+        setEmailError("The email domain does not exist.");
+        setEmailValidated(false);
+        return;
+      }
+
+      // ❌ SMTP says it's probably invalid
+      if (!smtpValid) {
+        setEmailError("This email address may not exist.");
+        setEmailValidated(false);
+        return;
+      }
+
+      // ❌ Low reputation score
+      if (score < 0.5) {
+        setEmailError("This email has a low reputation score.");
+        setEmailValidated(false);
+        return;
+      }
+
+      // ✅ Valid
+      setEmailError("");
       setEmailValidated(true);
+
+    } catch (err) {
+      setEmailError("Could not validate email");
+      setEmailValidated(false);
     } finally {
       setEmailValidating(false);
     }
   };
-
  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (emailError || passwordMatchError || isRegisterLoading || !emailValidated) return;
@@ -484,3 +529,4 @@ const RegisterModal: React.FC<RegisterModalProps> = ({
 };
 
 export default RegisterModal;
+
