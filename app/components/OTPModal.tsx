@@ -147,8 +147,8 @@ const OTPModal: React.FC<OTPModalProps> = ({
         </DialogTitle>
 
         <p className="text-center text-xl text-[#6b4d33] max-w-[38rem]">
-          We’ve sent a 6-digit OTP to{' '}
-          <span className="font-semibold text-[#3b2a1f]">{email}</span>
+          <span className="font-bold text-[#3b2a1f]">KINDLY CHECK YOUR SPAM FOLDER IF NOT FOUND.</span>
+          <br/> <br/><span className="font-semibold text-[#3b2a1f]">{email}</span>
         </p>
 
         {/* OTP Input */}
