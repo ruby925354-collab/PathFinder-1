@@ -6,7 +6,7 @@ import axios from 'axios';
 
 const Page = () => {
   const [track, setTrack] = useState<string | null>(null);
-  const [gradeLevel, setGradeLevel] = useState(11);
+  const [gradeLevel, setGradeLevel] = useState(12);
   const [semester, setSemester] = useState(1);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [grades, setGrades] = useState<string[]>([]);
@@ -67,7 +67,9 @@ const Page = () => {
           setLocked(true);
 
           const filtered = recordRes.data.records.filter(
-            (r: any) => r.grade_level === gradeLevel && r.semester === semester && r.strand === track
+            (r: any) =>
+              r.semester === semester &&
+              r.strand === track
           );
 
           setSubjects(filtered);
@@ -96,6 +98,11 @@ const Page = () => {
 
     fetchData();
   }, [track, gradeLevel, semester, loading, API_BASE_URL]);
+
+  // Fully lock to Grade 12 (no changes allowed anywhere)
+  useEffect(() => {
+    setGradeLevel(12);
+  }, []);
 
   // 🔹 Grade input
   const handleGradeChange = (index: number, value: string) => {
@@ -146,20 +153,18 @@ const Page = () => {
       );
       return [...filtered, ...currentPayload];
     });
-
     if (semester === 1) setSemester(2);
-    else if (gradeLevel === 11) {
-      setGradeLevel(12);
-      setSemester(1);
-    } else setShowConfirmation(true);
+    else setShowConfirmation(true);
+
   };
 
   const handleBack = () => {
-    if (semester === 2) setSemester(1);
-    else if (gradeLevel === 12) {
-      setGradeLevel(11);
-      setSemester(2);
-    } else setTrack(null);
+    if (semester === 2) {
+      setSemester(1);
+    } else {
+      setSemester(1);
+      setTrack(null);
+    }
   };
 
   const handleCancel = () => setShowConfirmation(false);
@@ -277,23 +282,23 @@ const Page = () => {
       </div>
 
       {/* ====== MAIN CARD (subjects area) ====== */}
-      <div className="w-full max-w-xl md:max-w-5xl bg-white/90 backdrop-blur-xl rounded-3xl p-10 shadow-2xl border border-[#E6D3BA] relative mt-32">
-      
-        {/* ✅ HALF-TAB (A1) */}
-        <div
-          className="
-            absolute -top-6 left-0
-            w-1/2
-            bg-[#7B4F2C] text-white
-            rounded-t-2xl
-            py-2
-            text-center
-            font-bold text-lg
-            shadow
-          "
-        >
-          Grade {gradeLevel} • {semester === 1 ? '1st Sem' : '2nd Sem'}
-        </div>
+<div className="w-full max-w-xl md:max-w-5xl bg-white/90 backdrop-blur-xl rounded-3xl p-10 shadow-2xl border border-[#E6D3BA] relative mt-32">
+
+  {/* ✅ HALF-TAB (A1) */}
+  <div
+    className="
+      absolute -top-6 left-0
+      w-1/2
+      bg-[#7B4F2C] text-white
+      rounded-t-2xl
+      py-2
+      text-center
+      font-bold text-lg
+      shadow
+    "
+  >
+    Grade {gradeLevel} • {semester === 1 ? '1st Sem' : '2nd Sem'}
+  </div>
 
         <div className="pl-20 md:pl-28"></div>
 
@@ -351,16 +356,15 @@ const Page = () => {
           <div className="flex items-center gap-4">
             <button
               onClick={handleBack}
-              className={`px-6 py-3 border rounded-xl font-semibold transition-all duration-300
-                ${ (semester === 1 && gradeLevel === 11 && locked) ? 'bg-gray-200 text-gray-400 border-gray-200 cursor-not-allowed' : 'border-[#7B4F2C] text-[#7B4F2C] hover:bg-[#7B4F2C] hover:text-white'}`}
-              disabled={semester === 1 && gradeLevel === 11 && locked} // disable only if would go back to track selection and user has records
+              className="px-6 py-3 border rounded-xl font-semibold transition-all duration-300
+                border-[#7B4F2C] text-[#7B4F2C] hover:bg-[#7B4F2C] hover:text-white"
             >
               ← Back
             </button>
 
             <button
               onClick={() => {
-                if (locked && semester === 2 && gradeLevel === 12) {
+                if (locked && semester === 2) {
                   // if locked and this is the final step, proceed to next flow (e.g., personality)
                   router.push('/PersonalityTest');
                 } else {
