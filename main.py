@@ -2361,9 +2361,11 @@ def get_scholastic_records(user_id: int):
                 FROM user_scholastic_record usr
                 JOIN scholastic_record sr ON usr.scholastic_id = sr.scholastic_id
                 WHERE usr.user_id = %s
-                ORDER BY sr.grade_level, sr.semester, sr.scholastic_id
+                AND sr.grade_level = 12
+                ORDER BY sr.semester, sr.scholastic_id
             """, (user_id,))
             rows = cursor.fetchall()
+
         return {"success": True, "records": rows}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch scholastic records: {e}")
@@ -2379,7 +2381,8 @@ def get_scholastic_result(user_id: int):
                 FROM user_scholastic_record usr
                 JOIN scholastic_record sr ON usr.scholastic_id = sr.scholastic_id
                 WHERE usr.user_id = %s
-                ORDER BY sr.grade_level, sr.semester
+                AND sr.grade_level = 12
+                ORDER BY sr.semester
             """, (user_id,))
             rows = cursor.fetchall()
 
@@ -2411,6 +2414,10 @@ def get_scholastic_subjects(
     semester: int = Query(...)
 ):
     try:
+        # Prevent access to Grade 11
+        if grade_level != 12:
+            raise HTTPException(status_code=400, detail="Only Grade 12 subjects are supported.")
+
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
             cursor.execute("""
@@ -2419,6 +2426,7 @@ def get_scholastic_subjects(
                 WHERE strand = %s AND grade_level = %s AND semester = %s
             """, (strand, grade_level, semester))
             return cursor.fetchall()
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch scholastic subjects: {e}")
 
@@ -2778,6 +2786,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
