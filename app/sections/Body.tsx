@@ -811,7 +811,7 @@ if (normalized === "/me knowledge") {
     // -----------------------------
     if (activeChat === "bot") {
       const response = await axios.post(
-        "https://toothy-cephalic-makena.ngrok-free.dev/chat",
+        "https://icecream39-pathfinder-ai.hf.space/chat",
         { user_id: userId, message: userMessage }
       );
 
@@ -1203,5 +1203,6 @@ if (normalized === "/me knowledge") {
 
 
 export default Body;
+
 
 
