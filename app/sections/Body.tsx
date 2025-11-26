@@ -773,11 +773,11 @@ if (normalized === "/me knowledge") {
       },
       {
         triggers: howTriggers,
-        reply: "You can use PathFinder by simply asking a question. The chatbot will respond instantly or forward your query to an admin."
+        reply: "You can start by clicking the Get Started button to begin the recommendation process. You can also click the human icon at the top right corner to access your Profile, Settings, or Logout options. The Profile shows your personal information, the Settings lets you change your password, manage account visibility, and select a chatbot model, while Logout will sign you out of your account."
       },
       {
         triggers: whyTriggers,
-        reply: "PathFinder exists to make support simple, fast, and always available for users who need help."
+        reply: `PathFinder provides personalized recommendations based on your interests and strengths. It guides you through an easy process—just click **Get Started**, answer the questions, and receive insights tailored to your goals. It's designed to help you make smarter decisions about your academic and career path.`,
       },
       {
         triggers: whoTriggers,
@@ -1203,4 +1203,5 @@ if (normalized === "/me knowledge") {
 
 
 export default Body;
+
 
