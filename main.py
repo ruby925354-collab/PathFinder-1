@@ -2106,15 +2106,15 @@ def compute_user_scholastic_knowledge(user_id: int):
             cursor = conn.cursor(dictionary=True)
 
             # ----------------------------
-            # Step 0: Dynamically detect all unique categories
+            # Step 0: Load real category columns from the table
             # ----------------------------
-            cursor.execute("""
-                SELECT DISTINCT category FROM knowledge_test
-                UNION
-                SELECT DISTINCT category FROM scholastic_categories
-            """)
-            categories = [r["category"] for r in cursor.fetchall() if r["category"]]
-            categories.sort()  # optional: keep clean order
+            cursor.execute("SHOW COLUMNS FROM user_scholastic_knowledge_test")
+            all_cols = [c["Field"] for c in cursor.fetchall()]
+
+            category_columns = [
+                c for c in all_cols
+                if c not in ("user_sk_id", "user_id", "strand")
+            ]
 
             # ----------------------------
             # Step 1: Compute knowledge_avg per category
@@ -2128,7 +2128,10 @@ def compute_user_scholastic_knowledge(user_id: int):
                 WHERE ukt.user_id = %s
                 GROUP BY kt.category
             """, (user_id,))
-            knowledge_data = {r["category"]: float(r["knowledge_avg"] or 0) for r in cursor.fetchall()}
+            knowledge_data = {
+                r["category"]: float(r["knowledge_avg"] or 0)
+                for r in cursor.fetchall()
+            }
 
             # ----------------------------
             # Step 2: Compute scholastic_avg per main category
@@ -2138,22 +2141,43 @@ def compute_user_scholastic_knowledge(user_id: int):
                     sc.category,
                     AVG(usr.grade) AS scholastic_avg
                 FROM scholastic_categories sc
-                JOIN user_scholastic_record usr ON usr.scholastic_id = sc.scholastic_id
+                JOIN user_scholastic_record usr 
+                    ON usr.scholastic_id = sc.scholastic_id
                 WHERE usr.user_id = %s
-                  AND usr.grade_level = 'Grade 12'
                 GROUP BY sc.category
             """, (user_id,))
-            scholastic_data = {r["category"]: float(r["scholastic_avg"] or 0) for r in cursor.fetchall()}
+            scholastic_data = {
+                r["category"]: float(r["scholastic_avg"] or 0)
+                for r in cursor.fetchall()
+            }
 
             # ----------------------------
-            # Step 3: Compute normalized scores
+            # Step 3: Compute normalized scores (column-name aligned)
             # ----------------------------
             results = {}
-            for cat in categories:
-                know = knowledge_data.get(cat, 0.0)
-                schol = scholastic_data.get(cat, 0.0)
-                normalized = round(((know + schol) / 2) / 100, 4)
-                results[cat] = normalized
+
+            for col in category_columns:
+                category = col.replace("_", " ")
+
+                know = knowledge_data.get(category)
+                schol = scholastic_data.get(category)
+
+                # Case 1: BOTH exist → normalize
+                if know is not None and schol is not None:
+                    normalized = round(((know + schol) / 2) / 100, 4)
+
+                # Case 2: Only KNOWLEDGE exists
+                elif know is not None:
+                    normalized = round(know / 100, 4)
+
+                # Case 3: Only SCHOLASTIC exists
+                elif schol is not None:
+                    normalized = round(schol / 100, 4)
+
+                else:
+                    normalized = 0.0
+
+                results[col] = normalized
 
             # ----------------------------
             # Step 4: Get user's strand
@@ -2171,9 +2195,10 @@ def compute_user_scholastic_knowledge(user_id: int):
             # ----------------------------
             # Step 5: Save results into user_scholastic_knowledge_test
             # ----------------------------
-
-            # Check if the user already has a scholastic record
-            cursor.execute("SELECT 1 FROM user_scholastic_knowledge_test WHERE user_id = %s", (user_id,))
+            cursor.execute(
+                "SELECT 1 FROM user_scholastic_knowledge_test WHERE user_id = %s",
+                (user_id,)
+            )
             existing = cursor.fetchone()
             if not existing:
                 raise HTTPException(
@@ -2181,19 +2206,16 @@ def compute_user_scholastic_knowledge(user_id: int):
                     detail="Please complete the scholastic test first before computing knowledge scores."
                 )
 
-            # Build dynamic UPDATE query (escape spaces → underscores)
             update_parts = []
             values = []
-            for cat in categories:
-                col_name = cat.replace(" ", "_")
-                update_parts.append(f"`{col_name}` = %s")
-                values.append(results.get(cat, 0.0))
 
-            # Add strand in case it needs to be updated
+            for col in category_columns:
+                update_parts.append(f"`{col}` = %s")
+                values.append(results[col])
+
             update_parts.append("`strand` = %s")
             values.append(strand)
 
-            # Add user_id for WHERE clause
             values.append(user_id)
 
             update_query = f"""
@@ -2201,6 +2223,7 @@ def compute_user_scholastic_knowledge(user_id: int):
                 SET {', '.join(update_parts)}
                 WHERE user_id = %s
             """
+
             cursor.execute(update_query, tuple(values))
             conn.commit()
 
@@ -2211,7 +2234,7 @@ def compute_user_scholastic_knowledge(user_id: int):
         }
 
     except HTTPException:
-        raise  # rethrow user-friendly errors
+        raise
 
     except Exception as e:
         traceback.print_exc()
@@ -2357,17 +2380,68 @@ def get_scholastic_records(user_id: int):
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("""
-                SELECT sr.scholastic_id, sr.strand, sr.grade_level, sr.semester, sr.subjects, usr.grade
-                FROM user_scholastic_record usr
-                JOIN scholastic_record sr ON usr.scholastic_id = sr.scholastic_id
-                WHERE usr.user_id = %s
-                AND sr.grade_level = 12
-                ORDER BY sr.semester, sr.scholastic_id
-            """, (user_id,))
-            rows = cursor.fetchall()
 
-        return {"success": True, "records": rows}
+            # 1. GET USER STRAND
+            cursor.execute("""
+                SELECT strand
+                FROM user_scholastic_knowledge_test
+                WHERE user_id = %s
+            """, (user_id,))
+            user_info = cursor.fetchone()
+
+            if not user_info or not user_info["strand"]:
+                return {"success": False, "message": "User has no assigned strand"}
+
+            user_strand = user_info["strand"]
+
+            # 2. GET ALL SUBJECTS FOR USER'S STRAND (GRADE 12 ONLY)
+            cursor.execute("""
+                SELECT scholastic_id, subjects, semester, grade_level
+                FROM scholastic_record
+                WHERE strand = %s AND grade_level = 12
+                ORDER BY semester, scholastic_id
+            """, (user_strand,))
+            scholastic_rows = cursor.fetchall()
+
+            # 3. GET ALL USER GRADES
+            cursor.execute("""
+                SELECT scholastic_id, grade
+                FROM user_scholastic_record
+                WHERE user_id = %s
+            """, (user_id,))
+            user_grades_raw = cursor.fetchall()
+
+        # No grades at all → user has not submitted yet → send empty records
+        if len(user_grades_raw) == 0:
+            return {"success": True, "records": []}
+
+        # Convert to dictionary for easy lookup
+        user_grades = {row["scholastic_id"]: row["grade"] for row in user_grades_raw}
+
+        processed_records = []
+
+        # Build final output
+        for row in scholastic_rows:
+            scholastic_id = row["scholastic_id"]
+            subject = row["subjects"]
+
+            if scholastic_id in user_grades:
+                final_grade = user_grades[scholastic_id]
+            else:
+                # Subject exists but user skipped → mark
+                final_grade = "marked"
+
+            processed_records.append({
+                "scholastic_id": scholastic_id,
+                "strand": user_strand,
+                "grade_level": row["grade_level"],
+                "semester": row["semester"],
+                "subject": subject,
+                "grade": final_grade
+            })
+
+        return {"success": True, "records": processed_records}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch scholastic records: {e}")
 
@@ -2436,23 +2510,37 @@ def get_scholastic_subjects(
 def save_scholastic_answers(answers: List[dict]):
     try:
         if not answers or not isinstance(answers, list):
-            raise HTTPException(status_code=400, detail="Invalid payload: expected a list of answers")
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid payload: expected a list of answers"
+            )
 
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
 
-            print("Incoming payload:", answers)  # Debug full request
+            print("Incoming payload:", answers)
 
             for ans in answers:
                 user_id = ans.get("user_id")
                 scholastic_id = ans.get("scholastic_id")
                 grade = ans.get("grade")
 
-                # Validation
-                if user_id is None or scholastic_id is None or grade is None:
-                    raise HTTPException(status_code=400, detail=f"Missing data in {ans}")
-                if not isinstance(grade, (int, float)) or grade < 60 or grade > 100:
-                    raise HTTPException(status_code=400, detail=f"Invalid grade {grade} for scholastic_id {scholastic_id}")
+                if user_id is None or scholastic_id is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Missing data in {ans}"
+                    )
+
+                # 🔥 Skip if marked as NA (0 or None)
+                if grade is None or grade == 0:
+                    continue
+
+                # Basic validation (only check type)
+                if not isinstance(grade, (int, float)):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid grade {grade} for scholastic_id {scholastic_id}"
+                    )
 
                 # Check if record exists
                 cursor.execute("""
@@ -2476,11 +2564,16 @@ def save_scholastic_answers(answers: List[dict]):
 
             conn.commit()
 
-        return {"success": True, "message": "Scholastic records saved/updated successfully"}
+        return {
+            "success": True,
+            "message": "Scholastic records saved/updated successfully"
+        }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save scholastic records: {e}")
-
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save scholastic records: {e}"
+        )
 
 # Optional admin reset endpoint (good for testing)
 @app.delete("/api/scholastic/reset/{user_id}")
@@ -2836,6 +2929,7 @@ def get_top_programs():
     cursor.close()
     conn.close()
     return results
+
 
 
 
