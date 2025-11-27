@@ -3,6 +3,15 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 
+type ScholasticRecord = {
+  scholastic_id: number;
+  strand: string;
+  grade_level: number;
+  semester: number;
+  subject?: string;
+  subjects?: string;
+  grade: number | string | null;
+};
 
 const Page = () => {
   const [track, setTrack] = useState<string | null>(null);
@@ -18,6 +27,7 @@ const Page = () => {
   const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const [notAvailable, setNotAvailable] = useState<boolean[]>([]);
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
   // 🧭 Redirect admin away
@@ -66,15 +76,27 @@ const Page = () => {
         if (recordRes.data.success && recordRes.data.records.length > 0) {
           setLocked(true);
 
-          const filtered = recordRes.data.records.filter(
-            (r: any) =>
+          const filtered: ScholasticRecord[] = recordRes.data.records.filter(
+            (r: ScholasticRecord) =>
               r.semester === semester &&
               r.strand === track
           );
 
           setSubjects(filtered);
-          setGrades(filtered.map((r: any) => r.grade?.toString() || ''));
+
+          // FIX: Convert "marked" to NA auto-lock
+          const fixedGrades = filtered.map((r) =>
+            r.grade === "marked" ? "N/A" : r.grade?.toString() || ""
+          );
+
+          const fixedNA = filtered.map((r) =>
+            r.grade === "marked"
+          );
+
+          setGrades(fixedGrades);
+          setNotAvailable(fixedNA);
           setErrors(Array(filtered.length).fill(''));
+
           return;
         }
 
@@ -86,6 +108,7 @@ const Page = () => {
           setSubjects(subjRes.data);
           setGrades(Array(subjRes.data.length).fill(''));
           setErrors(Array(subjRes.data.length).fill(''));
+          setNotAvailable(Array(subjRes.data.length).fill(false));
           setLocked(false);
         } else {
           setSubjects([]);
@@ -118,10 +141,24 @@ const Page = () => {
     setGrades(updatedGrades);
     setErrors(updatedErrors);
   };
+  const toggleNotAvailable = (index: number) => {
+    const updated = [...notAvailable];
+    updated[index] = !updated[index];
+    setNotAvailable(updated);
+
+    const updatedErrors = [...errors];
+    updatedErrors[index] = '';
+    setErrors(updatedErrors);
+
+    const updatedGrades = [...grades];
+    updatedGrades[index] = updated[index] ? 'N/A' : '';
+    setGrades(updatedGrades);
+  };
 
   // 🔹 Next navigation
   const handleNext = () => {
-    const updatedErrors = grades.map((g) => {
+    const updatedErrors = grades.map((g, i) => {
+      if (notAvailable[i]) return '';
       if (!g) return 'Fill the blanks';
       if (isNaN(Number(g)) || Number(g) < 60 || Number(g) > 100)
         return 'Invalid grade input';
@@ -324,26 +361,44 @@ const Page = () => {
               <div className="flex items-center gap-4">
                 <div className="w-6 h-6 md:w-8 md:h-8 lg:w-10 lg:h-10 bg-[#7B4F2C] rounded-full flex-shrink-0 shadow-inner" />
                 <span className="text-2xl md:text-2xl lg:text-3xl font-semibold text-[#4B3621]">
-                  {subject.subjects}
+                  {subject.subject || subject.subjects}
                 </span>
               </div>
 
-              <div className="flex flex-col items-end">
-                <input
-                  id={`grade-input-${index}`}
-                  type="number"
-                  min={60}
-                  max={100}
-                  step={0.01}
-                  value={grades[index] || ''}
-                  onChange={(e) => handleGradeChange(index, e.target.value)}
-                  readOnly={locked}
-                  className={`no-spinner w-28 md:w-32 text-center rounded-xl border-2 py-2 text-lg font-medium
-                    ${errors[index] ? 'border-red-500' : 'border-[#CBB197]'} focus:outline-none focus:ring-2 focus:ring-[#4B3621] bg-white`}
-                />
-                {errors[index] && (
-                  <p className="text-red-500 text-sm mt-1">{errors[index]}</p>
-                )}
+              <div className="flex items-center gap-3">
+                {/* ❌ Toggle Button */}
+                <button
+                  onClick={() => !locked && toggleNotAvailable(index)}
+                  disabled={locked}
+                  className={`
+                    w-8 h-8 flex items-center justify-center
+                    text-lg font-bold rounded-lg border
+                    ${notAvailable[index]
+                      ? "bg-red-600 text-white border-red-700"
+                      : "bg-white text-gray-500 border-gray-400"}
+                    ${locked ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+                  `}
+                >
+                  {notAvailable[index] ? "X" : ""}
+                </button>
+
+                {/* Grade Input */}
+                <div className="flex flex-col items-end">
+                  <input
+                    id={`grade-input-${index}`}
+                    type="text"
+                    value={grades[index]}
+                    disabled={locked || notAvailable[index]}
+                    onChange={(e) => handleGradeChange(index, e.target.value)}
+                    className={`no-spinner w-28 md:w-32 text-center rounded-xl border-2 py-2 text-lg font-medium
+                      ${errors[index] ? 'border-red-500' : 'border-[#CBB197]'}
+                      ${notAvailable[index] ? "bg-gray-300 cursor-not-allowed" : "bg-white"}`}
+                  />
+
+                  {!notAvailable[index] && errors[index] && (
+                    <p className="text-red-500 text-sm mt-1">{errors[index]}</p>
+                  )}
+                </div>
               </div>
             </div>
           ))}
