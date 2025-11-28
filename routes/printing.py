@@ -358,3 +358,4 @@ def get_information_user(information_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
